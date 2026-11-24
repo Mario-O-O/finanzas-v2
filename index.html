@@ -72,6 +72,16 @@ td.r,th.r{text-align:right}
 .drop{border:1.5px dashed var(--line);border-radius:var(--r);padding:18px;text-align:center}
 .drop.over{border-color:var(--acc);background:var(--acc-soft)}
 .status{font-size:12px;color:var(--muted);min-height:16px}
+.fab{position:fixed;right:18px;bottom:calc(18px + env(safe-area-inset-bottom));width:60px;height:60px;border-radius:50%;background:var(--acc);border:none;color:#fff;font-size:32px;line-height:1;box-shadow:0 6px 18px rgba(0,0,0,.25);z-index:5}
+.sheet{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:8;display:flex;align-items:flex-end;justify-content:center}
+.sheet .panel{background:var(--card);width:100%;max-width:560px;border-radius:18px 18px 0 0;padding:18px 16px calc(18px + env(safe-area-inset-bottom));max-height:92vh;overflow:auto}
+.amount{font-size:34px;font-weight:700;text-align:center;border:none;background:transparent;padding:6px 0}
+.seg{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin:8px 0 12px}
+.seg button.on{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0 12px}
+.chips button{border-radius:99px;padding:6px 12px;font-size:14px}
+.chips button.on{background:var(--acc);border-color:var(--acc);color:#fff}
+.wrap{padding-bottom:100px}
 .hide{display:none!important}
 .vh{position:absolute;width:1px;height:1px;opacity:0;overflow:hidden}
 .btnlike{display:inline-block;position:relative;cursor:pointer;border:1px solid var(--line);background:var(--card);border-radius:10px;padding:7px 12px}
@@ -100,6 +110,7 @@ svg text{fill:var(--muted);font:11px system-ui,sans-serif}
   </nav>
   <main id="view"></main>
 </div>
+<button class="fab" id="fab" aria-label="Anotar gasto o ingreso">+</button>
 <div class="lock hide" id="lock">
   <form class="box" id="lockForm">
     <h1>Mis finanzas</h1>
@@ -181,6 +192,8 @@ function applyData(d){
   config = Object.assign({}, EMPTY, (d && d.config) || {});
   config.fijos = Array.isArray(config.fijos) ? config.fijos : [];
   config.deudas = Array.isArray(config.deudas) ? config.deudas : [];
+  config.fijos.forEach(f => { if (!f.id) f.id = uid(); });
+  config.deudas.forEach(d => { if (!d.id) d.id = uid(); });
   for (const k in movs) delete movs[k];
   if (d && d.movs && typeof d.movs === "object") for (const k in d.movs) if (/^\d{4}-\d{2}$/.test(k) && Array.isArray(d.movs[k])) movs[k] = d.movs[k];
 }
@@ -190,19 +203,32 @@ async function loadMonth(k){ if (!movs[k]) movs[k] = []; }
 const tasaDe = d => (d.tasaEA == null || d.tasaEA === "" ? config.tasaSupuesta : +d.tasaEA);
 const mensual = ea => Math.pow(1 + ea/100, 1/12) - 1;
 const cuotaMes = d => d.saldo <= 0 ? 0 : (d.pagoUnico ? d.saldo : Math.min(d.cuota, d.saldo));
+const hoy = () => { const d = new Date(); return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0"); };
+const pagadoRef = (list, ref) => list.filter(m => m.ref === ref).reduce((a,m) => a + m.valor, 0);
+function objetivoDeuda(d, list){
+  const pag = pagadoRef(list, "deuda:"+d.id);
+  const obj = d.pagoUnico ? d.saldo + pag : Math.min(+d.cuota||0, d.saldo + pag);
+  return {pag, obj, falta: Math.max(0, obj - pag)};
+}
 function resumenMes(k){
   const list = movs[k] || [];
-  const fijos = config.fijos.reduce((a,f) => a + (+f.valor||0), 0);
-  const minimos = config.deudas.reduce((a,d) => a + cuotaMes(d), 0);
-  const extras = list.filter(m => m.tipo === "ingreso" && m.categoria !== "Salario").reduce((a,m) => a + m.valor, 0);
-  const ingreso = (+config.ingreso||0) + extras;
-  const ahorro = (+config.ingreso||0) * (+config.ahorroPct||0) / 100;
-  const limite = ingreso - fijos - minimos - ahorro;
+  const entradas = list.filter(m => m.tipo === "ingreso").reduce((a,m) => a + m.valor, 0);
+  const salidas = list.filter(m => m.tipo === "gasto").reduce((a,m) => a + m.valor, 0);
+  const sueldoReg = list.some(m => m.tipo === "ingreso" && m.categoria === "Salario");
+  const porRecibir = sueldoReg ? 0 : (+config.ingreso||0);
+  const pendFijos = config.fijos.filter(f => !list.some(m => m.ref === "fijo:"+f.id)).reduce((a,f) => a + (+f.valor||0), 0);
+  const pendDeudas = config.deudas.reduce((a,d) => a + objetivoDeuda(d, list).falta, 0);
+  const metaAhorro = (+config.ingreso||0) * (+config.ahorroPct||0) / 100;
+  const ahorrado = list.filter(m => m.tipo === "gasto" && m.categoria === "Ahorro").reduce((a,m) => a + m.valor, 0);
+  const pendAhorro = Math.max(0, metaAhorro - ahorrado);
+  const disponible = entradas - salidas;
+  const porPagar = pendFijos + pendDeudas + pendAhorro;
+  const libre = disponible + porRecibir - porPagar;
   const varGastos = list.filter(m => m.tipo === "gasto" && !NO_VAR.has(m.categoria));
   const gastado = varGastos.reduce((a,m) => a + m.valor, 0);
   const porCat = {};
   varGastos.forEach(m => porCat[m.categoria] = (porCat[m.categoria]||0) + m.valor);
-  return {fijos, minimos, extras, ingreso, ahorro, limite, gastado, porCat, restante: limite - gastado};
+  return {entradas, salidas, disponible, porRecibir, pendFijos, pendDeudas, pendAhorro, porPagar, libre, gastado, porCat, sueldoReg};
 }
 
 function simular(metodo, extra){
@@ -243,73 +269,78 @@ function render(){
 
 function vResumen(v){
   const r = resumenMes(cur);
-  const pct = r.limite > 0 ? Math.min(100, r.gastado / r.limite * 100) : 100;
-  let cls = "ok", titulo, texto;
-  const hoy = new Date(), esActual = cur === mKey(hoy);
+  const presupuesto = r.gastado + r.libre;
+  const pct = presupuesto > 0 ? Math.min(100, r.gastado / presupuesto * 100) : 100;
+  const esActual = cur === mKey(new Date());
   const diasMes = new Date(+cur.slice(0,4), +cur.slice(5), 0).getDate();
-  const diasRest = esActual ? diasMes - hoy.getDate() + 1 : diasMes;
-  if (r.limite <= 0){
-    cls = "bad"; titulo = "Este mes no alcanza";
-    texto = "Solo los gastos fijos y las cuotas mínimas ya suman " + fmt(-r.limite) + " más de lo que entra. Cada peso de gasto variable agranda el hueco. Mira la pestaña “Plan”.";
-  } else if (r.gastado > r.limite){
-    cls = "bad"; titulo = "Pasaste tu límite de gasto";
-    texto = "Te pasaste por " + fmt(r.gastado - r.limite) + ". Desde ya, solo lo indispensable.";
-  } else if (pct >= 80){
-    cls = "warn"; titulo = "Cerca del límite";
-    texto = "Te quedan " + fmt(r.restante) + (esActual ? " para " + diasRest + " días: unos " + fmt(r.restante / diasRest) + " por día." : ".");
-  } else {
-    titulo = "Vas bien";
-    texto = "Te quedan " + fmt(r.restante) + (esActual ? " para " + diasRest + " días: unos " + fmt(r.restante / diasRest) + " por día." : ".");
-  }
+  const diasRest = esActual ? diasMes - new Date().getDate() + 1 : diasMes;
+  let cls = "ok", texto;
+  if (r.libre < 0){ cls = "bad"; texto = "No alcanza: te faltan " + fmt(-r.libre) + " para cubrir lo que debes pagar este mes. Cada gasto extra agranda el hueco."; }
+  else if (pct >= 80){ cls = "warn"; texto = "Cuidado, ya usaste el " + Math.round(pct) + "% de lo que tenías para gastar." + (esActual ? " Te alcanza para unos " + fmt(r.libre/diasRest) + " por día." : ""); }
+  else texto = esActual ? "Puedes gastar unos " + fmt(r.libre/diasRest) + " por día hasta fin de mes." : "Vas bien este mes.";
   v.append(el("div",{class:"hero "+cls},
-    el("div",{class:"t",text:"Valor crítico de no gasto · lo máximo para gastos variables este mes"}),
-    el("div",{class:"big num",text:fmt(r.limite)}),
+    el("div",{class:"t",text:"Te queda libre para gastar este mes"}),
+    el("div",{class:"big num",text:fmt(r.libre)}),
     el("div",{class:"meter"}, el("i",{style:"width:"+pct.toFixed(1)+"%"})),
-    el("div",{class:"small muted"}, "Gastado en variables: ", el("span",{class:"num",text:fmt(r.gastado)})),
-    el("p",{}, el("strong",{text:titulo+". "}), texto)
+    el("p",{text:texto})
   ));
   v.append(el("div",{class:"grid",style:"margin-bottom:14px"},
-    stat("Ingreso del mes", r.ingreso, r.extras ? "incluye " + fmt(r.extras) + " extra" : null),
-    stat("Gastos fijos", -r.fijos),
-    stat("Cuotas de deudas", -r.minimos),
-    stat("Ahorro (" + (config.ahorroPct||0) + "%)", -r.ahorro),
-    stat("Balance al cierre", r.restante, "si no gastas más", r.restante < 0 ? "red" : "okc")
+    stat("Plata en tu bolsillo", r.disponible, "lo que entró − lo que salió", r.disponible < 0 ? "red" : null),
+    stat("Por recibir", r.porRecibir, r.sueldoReg ? "el sueldo ya llegó" : "sueldo aún no registrado"),
+    stat("Por pagar", -r.porPagar, "fijos y cuotas pendientes"),
+    stat("Gastado en el día a día", -r.gastado)
   ));
-  // categories
-  const cats = Object.entries(r.porCat).sort((a,b) => b[1]-a[1]);
-  const c = el("div",{class:"card"}, el("h2",{text:"¿En qué se fue la plata?"}));
-  if (!cats.length) c.append(el("p",{class:"muted",text:"Aún no hay gastos este mes. Súbelos en “Movimientos” (pantallazos o a mano)."}));
-  const max = cats.length ? cats[0][1] : 1;
-  cats.forEach(([k,val]) => c.append(el("div",{class:"catrow"},
-    el("span",{text:k}), el("div",{class:"bwrap"}, el("div",{class:"bar",style:"width:"+(val/max*100).toFixed(1)+"%"})),
-    el("span",{class:"num r",style:"text-align:right",text:fmt(val)}))));
+
+  // Pagos del mes: checklist dinámico
+  const list = movs[cur] || [];
+  const c = el("div",{class:"card"}, el("h2",{text:"Pagos del mes"}));
+  if (!r.sueldoReg && config.ingreso) c.append(el("div",{class:"row"},
+    el("div",{}, el("strong",{text:"Sueldo"}), el("div",{class:"d",text:"Regístralo el día que te llegue"})),
+    el("button",{class:"pri",text:"Llegó " + fmt(config.ingreso),onclick:() => { agregar([{fecha: esActual ? hoy() : cur+"-01", descripcion:"Sueldo", valor:config.ingreso, tipo:"ingreso", categoria:"Salario"}]); render(); }})));
+  config.fijos.forEach(f => {
+    const m = list.find(x => x.ref === "fijo:"+f.id);
+    c.append(el("div",{class:"row"},
+      el("div",{}, el("span",{text:(m ? "✓ " : "") + f.nombre}), el("div",{class:"d num",text:fmt(+f.valor||0)})),
+      m ? el("button",{class:"ghost",text:"Deshacer",onclick:() => { quitarMov(cur, m.id); render(); }})
+        : el("button",{text:"Pagar",onclick:() => { agregar([{fecha: esActual ? hoy() : cur+"-01", descripcion:f.nombre, valor:+f.valor||0, tipo:"gasto", categoria:"Fijo", ref:"fijo:"+f.id}]); render(); }})));
+  });
+  config.deudas.forEach(d => {
+    const o = objetivoDeuda(d, list);
+    if (o.obj <= 0 && o.pag <= 0) return;
+    const listo = o.falta <= 0;
+    c.append(el("div",{class:"row"},
+      el("div",{}, el("span",{text:(listo ? "✓ " : "") + d.nombre}),
+        el("div",{class:"d num",text: o.pag > 0 && !listo ? "Pagado " + fmt(o.pag) + " de " + fmt(o.obj) : fmt(o.obj)})),
+      listo ? el("span",{class:"pill okp",text:"Pagada"})
+        : el("button",{text:"Pagar " + fmt(o.falta),onclick:() => { pagarDeuda(d, o.falta); render(); }})));
+  });
   v.append(c);
-  // history
-  const h = el("div",{class:"card"}, el("h2",{text:"Últimos 6 meses · gastos variables"}));
+
+  // categorías
+  const cats = Object.entries(r.porCat).sort((a,b) => b[1]-a[1]);
+  const cc = el("div",{class:"card"}, el("h2",{text:"¿En qué se fue la plata del día a día?"}));
+  if (!cats.length) cc.append(el("p",{class:"muted",text:"Aún no hay gastos. Toca el botón + para anotar uno."}));
+  const max = cats.length ? cats[0][1] : 1;
+  cats.forEach(([k,val]) => cc.append(el("div",{class:"catrow"},
+    el("span",{text:k}), el("div",{class:"bwrap"}, el("div",{class:"bar",style:"width:"+(val/max*100).toFixed(1)+"%"})),
+    el("span",{class:"num",style:"text-align:right",text:fmt(val)}))));
+  v.append(cc);
+
+  // últimos 6 meses
+  const h = el("div",{class:"card"}, el("h2",{text:"Últimos 6 meses · gasto del día a día"}));
   const ks = [5,4,3,2,1,0].map(i => addM(cur,-i));
-  const vals = ks.map(k => movs[k] ? resumenMes(k).gastado : 0);
-  const mx = Math.max(r.limite, ...vals, 1);
-  const W = 600, H = 150, bw = W/6;
-  const svg = document.createElementNS("http://www.w3.org/2000/svg","svg");
-  svg.setAttribute("viewBox","0 0 "+W+" "+(H+24)); svg.setAttribute("width","100%");
+  const vals = ks.map(k => resumenMes(k).gastado);
+  const mx = Math.max(...vals, 1), W = 600, H = 130, bw = W/6, ns = "http://www.w3.org/2000/svg";
+  const svg = document.createElementNS(ns,"svg"); svg.setAttribute("viewBox","0 0 "+W+" "+(H+22)); svg.setAttribute("width","100%");
   ks.forEach((k,i) => {
-    const hgt = vals[i]/mx*H, x = i*bw + bw*0.2;
-    const rect = document.createElementNS(svg.namespaceURI,"rect");
-    rect.setAttribute("x",x); rect.setAttribute("y",H-hgt); rect.setAttribute("width",bw*0.6); rect.setAttribute("height",Math.max(hgt,1)); rect.setAttribute("rx",4);
-    rect.setAttribute("fill", r.limite > 0 && vals[i] > r.limite ? "var(--red)" : "var(--acc)");
-    const t = document.createElementNS(svg.namespaceURI,"title"); t.textContent = mName(k)+": "+fmt(vals[i]); rect.append(t);
-    const lab = document.createElementNS(svg.namespaceURI,"text");
-    lab.setAttribute("x",x+bw*0.3); lab.setAttribute("y",H+16); lab.setAttribute("text-anchor","middle"); lab.textContent = MESES[+k.slice(5)-1].slice(0,3);
+    const hg = vals[i]/mx*H, x = i*bw + bw*0.2;
+    const rect = document.createElementNS(ns,"rect");
+    rect.setAttribute("x",x); rect.setAttribute("y",H-hg); rect.setAttribute("width",bw*0.6); rect.setAttribute("height",Math.max(hg,1)); rect.setAttribute("rx",4); rect.setAttribute("fill", k === cur ? "var(--acc)" : "var(--muted)");
+    const t = document.createElementNS(ns,"title"); t.textContent = mName(k)+": "+fmt(vals[i]); rect.append(t);
+    const lab = document.createElementNS(ns,"text"); lab.setAttribute("x",x+bw*0.3); lab.setAttribute("y",H+16); lab.setAttribute("text-anchor","middle"); lab.textContent = MESES[+k.slice(5)-1].slice(0,3);
     svg.append(rect, lab);
   });
-  if (r.limite > 0){
-    const y = H - r.limite/mx*H;
-    const ln = document.createElementNS(svg.namespaceURI,"line");
-    ln.setAttribute("x1",0); ln.setAttribute("x2",W); ln.setAttribute("y1",y); ln.setAttribute("y2",y);
-    ln.setAttribute("stroke","var(--amb)"); ln.setAttribute("stroke-dasharray","5 4");
-    svg.append(ln);
-  }
-  h.append(svg, el("div",{class:"small muted",text:"La línea punteada es tu límite de este mes. Las barras rojas lo pasaron."}));
+  h.append(svg);
   v.append(h);
 }
 function stat(l, val, sub, color){
@@ -320,7 +351,7 @@ function stat(l, val, sub, color){
 function vMovs(v){
   v.append(el("div",{class:"tip",style:"margin:0 0 14px"},"¿Muchos movimientos? Mándale los pantallazos a Claude y pídele las filas; o anótalos aquí apenas gastes, toma 5 segundos."));
   // manual form
-  const f = {fecha: el("input",{type:"date",value: cur === mKey(new Date()) ? new Date().toISOString().slice(0,10) : cur+"-01"}),
+  const f = {fecha: el("input",{type:"date",value: cur === mKey(new Date()) ? hoy() : cur+"-01"}),
     desc: el("input",{placeholder:"Ej: Rappi, gasolina, D1"}),
     valor: el("input",{inputmode:"numeric",placeholder:"25.000"}),
     tipo: el("select",{}, el("option",{value:"gasto",text:"Gasto"}), el("option",{value:"ingreso",text:"Ingreso"})),
@@ -342,7 +373,7 @@ function vMovs(v){
     c.append(el("div",{class:"row"},
       el("div",{style:"min-width:0;flex:1"}, el("div",{text:m.descripcion}), el("div",{class:"d"}, m.fecha + " · ", sel)),
       el("span",{class:"num "+(m.tipo==="ingreso"?"okc":""),text:(m.tipo==="ingreso"?"+":"")+fmt(m.valor)}),
-      el("button",{class:"ghost",title:"Borrar","aria-label":"Borrar",onclick:() => { movs[cur] = movs[cur].filter(x => x.id !== m.id); saveMonth(cur); render(); },text:"✕"})));
+      el("button",{class:"ghost",title:"Borrar","aria-label":"Borrar",onclick:() => { quitarMov(cur, m.id); render(); },text:"✕"})));
   });
   v.append(c);
 }
@@ -351,10 +382,20 @@ function agregar(items){
   items.forEach(it => {
     const k = (it.fecha||"").slice(0,7) || cur;
     movs[k] = movs[k] || [];
-    movs[k].push({id:uid(), fecha:it.fecha||cur+"-01", descripcion:String(it.descripcion||"").slice(0,120), valor:Math.abs(num(it.valor)), tipo:it.tipo==="ingreso"?"ingreso":"gasto", categoria:CATS.includes(it.categoria)?it.categoria:"Otros"});
+    movs[k].push({id:uid(), fecha:it.fecha||cur+"-01", descripcion:String(it.descripcion||"").slice(0,120), valor:Math.abs(num(it.valor)), tipo:it.tipo==="ingreso"?"ingreso":"gasto", categoria:CATS.includes(it.categoria)?it.categoria:"Otros", ref:it.ref||null});
     tocados.add(k);
   });
   tocados.forEach(k => saveMonth(k));
+}
+function quitarMov(k, id){
+  const m = (movs[k]||[]).find(x => x.id === id); if (!m) return;
+  if (m.ref && m.ref.startsWith("deuda:")){ const d = config.deudas.find(x => "deuda:"+x.id === m.ref); if (d){ d.saldo += m.valor; saveConfig(); } }
+  movs[k] = movs[k].filter(x => x.id !== id); saveMonth(k);
+}
+function pagarDeuda(d, valor){
+  if (!(valor > 0)) return;
+  d.saldo = Math.max(0, d.saldo - valor); saveConfig();
+  agregar([{fecha: cur === mKey(new Date()) ? hoy() : cur+"-01", descripcion:"Pago "+d.nombre, valor, tipo:"gasto", categoria:"Pago deuda", ref:"deuda:"+d.id}]);
 }
 // ----- debts -----
 function vDeudas(v){
@@ -383,9 +424,7 @@ function vDeudas(v){
         el("label",{class:"f",style:"flex-direction:row;align-items:center;gap:6px"},unico,"Se paga todo de una")),
       d.saldo > 0 ? el("div",{class:"small muted",style:"margin-top:8px"}, "Te cobra unos ", el("span",{class:"num",text:fmt(intMes)}), " de intereses al mes" + (supuesta ? " (estimado; busca la tasa en tu extracto)." : ".")) : null,
       d.saldo > 0 ? el("div",{class:"form",style:"margin-top:10px"}, el("label",{class:"f"},"Registrar un pago",pago),
-        el("button",{text:"Registrar pago",onclick:() => { const p = num(pago.value); if (!p) return;
-          d.saldo = Math.max(0, d.saldo - p); saveConfig();
-          agregar([{fecha:new Date().toISOString().slice(0,10), descripcion:"Pago "+d.nombre, valor:p, tipo:"gasto", categoria:"Pago deuda"}]); render(); }})) : null
+        el("button",{text:"Registrar pago",onclick:() => { const p = num(pago.value); if (!p) return; pagarDeuda(d, p); render(); }})) : null
     ));
   });
   v.append(el("button",{text:"+ Agregar deuda",onclick:() => { config.deudas.push({id:uid(),nombre:"Nueva deuda",saldo:0,cuota:0,tasaEA:null,pagoUnico:false}); saveConfig(); render(); }}));
@@ -508,6 +547,45 @@ async function goMonth(k){ cur = k; await Promise.all([0,1,2,3,4,5].map(i => loa
 $("#prevM").onclick = () => goMonth(addM(cur,-1));
 $("#nextM").onclick = () => goMonth(addM(cur,1));
 render();
+
+// ----- anotar rápido -----
+const CATS_GASTO = ["Mercado","Transporte","Comida fuera / domicilios","Suscripciones","Salud","Ropa y personal","Entretenimiento","Hogar","Regalos","Ahorro","Otros"];
+const CATS_ING = ["Ingreso extra","Salario"];
+function openQuick(){
+  let tipo = "gasto", cat = "Mercado";
+  const amt = el("input",{class:"amount num",inputmode:"numeric",placeholder:"$0","aria-label":"Valor"});
+  amt.addEventListener("input", () => { const n = Math.round(num(amt.value)); amt.value = n ? "$" + n.toLocaleString("es-CO") : ""; });
+  const desc = el("input",{placeholder:"Descripción (opcional): Rappi, bus, D1…"});
+  const fecha = el("input",{type:"date",value: cur === mKey(new Date()) ? hoy() : cur+"-01"});
+  const chips = el("div",{class:"chips"});
+  const seg = el("div",{class:"seg"});
+  const preview = el("p",{class:"small muted",style:"text-align:center;margin:0 0 10px"});
+  function drawChips(){
+    chips.replaceChildren(...(tipo === "gasto" ? CATS_GASTO : CATS_ING).map(c => el("button",{type:"button",class: c === cat ? "on" : "",text:c,onclick:() => { cat = c; drawChips(); }})));
+    seg.replaceChildren(
+      el("button",{type:"button",class: tipo==="gasto"?"on":"",text:"− Gasto",onclick:() => { tipo = "gasto"; cat = "Mercado"; drawChips(); upd(); }}),
+      el("button",{type:"button",class: tipo==="ingreso"?"on":"",text:"+ Ingreso",onclick:() => { tipo = "ingreso"; cat = "Ingreso extra"; drawChips(); upd(); }}));
+  }
+  function upd(){
+    const n = num(amt.value), r = resumenMes(cur);
+    preview.textContent = n ? "Te quedaría libre: " + fmt(r.libre + (tipo === "gasto" ? -n : n) - (tipo==="ingreso" && cat==="Salario" && !r.sueldoReg ? n : 0)) : "Libre ahora: " + fmt(r.libre);
+  }
+  amt.addEventListener("input", upd);
+  const sheet = el("div",{class:"sheet",onclick:e => { if (e.target === sheet) sheet.remove(); }},
+    el("form",{class:"panel",onsubmit:e => { e.preventDefault();
+        const n = num(amt.value); if (!n){ amt.focus(); return; }
+        agregar([{fecha:fecha.value || hoy(), descripcion: desc.value.trim() || cat, valor:n, tipo, categoria:cat}]);
+        sheet.remove(); render();
+        setStatus((tipo === "gasto" ? "Gasto" : "Ingreso") + " de " + fmt(n) + " anotado"); }},
+      seg, amt, preview, chips, desc, el("div",{style:"height:8px"}), fecha,
+      el("div",{style:"display:flex;gap:8px;margin-top:14px"},
+        el("button",{type:"button",style:"flex:1",text:"Cancelar",onclick:() => sheet.remove()}),
+        el("button",{type:"submit",class:"pri",style:"flex:2",text:"Guardar"}))));
+  drawChips(); upd();
+  document.body.append(sheet);
+  setTimeout(() => amt.focus(), 60);
+}
+$("#fab").addEventListener("click", () => { if (config) openQuick(); });
 
 // ----- lock, install, offline -----
 function showLock(stored){
