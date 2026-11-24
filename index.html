@@ -299,9 +299,9 @@ const snapshot = () => JSON.stringify({v:1, config, movs});
 function idbOpen(){ return new Promise((res, rej) => { try { const r = indexedDB.open("finanzas", 1); r.onupgradeneeded = () => r.result.createObjectStore("kv"); r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); } catch(e){ rej(e); } }); }
 async function idbSet(k, v){ const db = await idbOpen(); return new Promise((res, rej) => { const tx = db.transaction("kv","readwrite"); tx.objectStore("kv").put(v, k); tx.oncomplete = () => res(); tx.onerror = () => rej(tx.error); }); }
 async function idbGet(k){ const db = await idbOpen(); return new Promise((res, rej) => { const rq = db.transaction("kv").objectStore("kv").get(k); rq.onsuccess = () => res(rq.result); rq.onerror = () => rej(rq.error); }); }
-async function writeNow(){
+async function writeNow(opts){
   const json = snapshot();
-  const ahora = new Date().toISOString();
+  const ahora = (opts && opts.ts) || new Date().toISOString();
   try { localStorage.setItem("finanzas:guardado", ahora); } catch(e){}
   idbSet("datos", {json, ahora}).catch(() => {});
   if (pinKey){
@@ -313,7 +313,79 @@ async function writeNow(){
     localStorage.setItem(K_PLAIN, json);
     localStorage.removeItem(K_ENC);
   }
+  if (!(opts && opts.sinSubir)) programarSubida();
 }
+
+// ---------- sincronización con un repositorio privado de GitHub ----------
+const K_GH = "finanzas:github";
+const ghCfg = () => { try { return JSON.parse(localStorage.getItem(K_GH) || "null"); } catch(e){ return null; } };
+const ghSet = c => { try { localStorage.setItem(K_GH, JSON.stringify(c)); } catch(e){} };
+const tsLocal = () => { try { return localStorage.getItem("finanzas:guardado") || ""; } catch(e){ return ""; } };
+let ghEstado = "", ghTimer = null, ghOcupado = false;
+const b64enc = str => { const b = new TextEncoder().encode(str); let s = ""; for (let i = 0; i < b.length; i += 0x8000) s += String.fromCharCode(...b.subarray(i, i + 0x8000)); return btoa(s); };
+const b64dec = b => new TextDecoder().decode(Uint8Array.from(atob(b.replace(/\s/g,"")), c => c.charCodeAt(0)));
+async function ghApi(c, method, body){
+  const r = await fetch("https://api.github.com/repos/" + c.repo + "/contents/datos.json", {method, cache:"no-store",
+    headers:{"Authorization":"Bearer " + c.token, "Accept":"application/vnd.github+json", "X-GitHub-Api-Version":"2022-11-28"},
+    body: body ? JSON.stringify(body) : undefined});
+  if (r.status === 404 && method === "GET") return null;
+  if (!r.ok){ const e = new Error("GitHub " + r.status); e.status = r.status; throw e; }
+  return r.json();
+}
+function ghError(e){
+  if (!navigator.onLine) return "Sin internet: se sube cuando vuelvas a tener conexión";
+  if (e.status === 401) return "La llave no sirve o venció. Crea una nueva";
+  if (e.status === 403 || e.status === 404) return "Sin permiso: revisa el repositorio y los permisos de la llave";
+  return "No se pudo sincronizar (" + (e.message || "error") + ")";
+}
+async function ghLeer(c){
+  const r = await ghApi(c, "GET");
+  if (!r) return null;
+  return {sha: r.sha, data: JSON.parse(b64dec(r.content))};
+}
+async function ghSubir(){
+  const c = ghCfg(); if (!c || !c.token || ghOcupado) return;
+  if (!navigator.onLine){ ghEstado = "Sin internet: se sube cuando vuelvas a tener conexión"; return; }
+  ghOcupado = true;
+  try {
+    const payload = {v:1, config, movs, guardadoEn: tsLocal()};
+    const put = sha => ghApi(c, "PUT", {message:"Actualización desde la app " + new Date().toLocaleString("es-CO"), content: b64enc(JSON.stringify(payload, null, 1)), sha: sha || undefined});
+    let res;
+    try { res = await put(c.sha); }
+    catch(e){ if (e.status === 409 || e.status === 422){ const rem = await ghLeer(c); res = await put(rem && rem.sha); } else throw e; }
+    c.sha = res.content.sha; c.ultima = new Date().toISOString(); c.pendiente = false; ghSet(c);
+    ghEstado = "";
+  } catch(e){ c.pendiente = true; ghSet(c); ghEstado = ghError(e); }
+  finally { ghOcupado = false; if (tab === "ajustes") render(); }
+}
+function programarSubida(){
+  const c = ghCfg(); if (!c || !c.token) return;
+  c.pendiente = true; ghSet(c);
+  clearTimeout(ghTimer); ghTimer = setTimeout(ghSubir, 4000);
+}
+// trae los datos del servidor si son más nuevos que los del celular
+async function ghBajar(silencioso){
+  const c = ghCfg(); if (!c || !c.token || ghOcupado || !navigator.onLine) return false;
+  ghOcupado = true;
+  try {
+    const rem = await ghLeer(c);
+    if (!rem){ ghOcupado = false; await ghSubir(); return false; }          // repositorio vacío: sube lo que hay
+    c.sha = rem.sha; ghSet(c);
+    const remTs = rem.data.guardadoEn || "", locTs = tsLocal();
+    const localVacio = !config || (!config.ingreso && !config.deudas.length && !Object.values(movs).some(l => l.length));
+    if (rem.data.config && (localVacio || (remTs > locTs && !c.pendiente))){
+      applyData(rem.data); await writeNow({ts: remTs || new Date().toISOString(), sinSubir:true});
+      c.ultima = new Date().toISOString(); ghSet(c); ghEstado = "";
+      if (!silencioso) setStatus("Datos actualizados desde GitHub");
+      ghOcupado = false; await goMonth(cur); return true;
+    }
+    ghOcupado = false;
+    if (c.pendiente || locTs > remTs) await ghSubir();
+    return false;
+  } catch(e){ ghEstado = ghError(e); ghOcupado = false; return false; }
+}
+window.addEventListener("online", () => { const c = ghCfg(); if (c && c.pendiente) ghSubir(); });
+document.addEventListener("visibilitychange", () => { if (!document.hidden) ghBajar(true); });
 let pendiente = false;
 function save(){
   clearTimeout(saveTimer); pendiente = true;
@@ -727,6 +799,35 @@ function vAjustes(v){
     installEvt ? el("button",{class:"pri",text:"Instalar app",onclick:async () => { installEvt.prompt(); await installEvt.userChoice.catch(()=>{}); installEvt = null; render(); }})
       : el("p",{class:"small muted",text:"En Chrome: menú ⋮ → “Instalar app” o “Agregar a la pantalla principal”. En iPhone (Safari): botón Compartir → “Agregar a pantalla de inicio”."})));
 
+  // sincronización con GitHub
+  const gc = ghCfg() || {};
+  const repoIn = el("input",{value:gc.repo||"",placeholder:"usuario/finanzas-datos",autocapitalize:"off",autocomplete:"off",spellcheck:"false"});
+  const tokIn = el("input",{type:"password",value:gc.token||"",placeholder:"github_pat_…",autocomplete:"off"});
+  const gmsg = el("p",{class:"small",style:"margin:8px 0 0"});
+  const conectado = !!(gc.repo && gc.token);
+  const estadoTxt = ghEstado ? ghEstado : conectado ? (gc.pendiente ? "Cambios pendientes por subir" : gc.ultima ? "Sincronizado: " + new Date(gc.ultima).toLocaleString("es-CO",{day:"numeric",month:"short",hour:"numeric",minute:"2-digit"}) : "Conectado") : "";
+  v.append(el("div",{class:"card"}, el("h2",{}, "Guardar en GitHub ", conectado ? el("span",{class:"pill " + (ghEstado ? "red" : "okp"),text: ghEstado ? "Revisar" : "Activo"}) : null),
+    el("p",{class:"small muted",style:"margin:-4px 0 12px",text:"Tus datos se guardan solos en tu repositorio privado. Si se borra el celular, vuelven al conectar de nuevo."}),
+    el("div",{class:"form"}, el("label",{class:"f"},"Repositorio privado",repoIn), el("label",{class:"f"},"Llave (token)",tokIn)),
+    el("div",{style:"display:flex;gap:8px;flex-wrap:wrap;margin-top:12px"},
+      el("button",{class:"pri",text: conectado ? "Guardar cambios" : "Conectar",onclick:async () => {
+        const repo = repoIn.value.trim().replace(/^https?:\/\/github\.com\//,"").replace(/\/$/,""), token = tokIn.value.trim();
+        if (!/^[\w.-]+\/[\w.-]+$/.test(repo)){ gmsg.textContent = "Escribe el repositorio como usuario/nombre."; return; }
+        if (!token){ gmsg.textContent = "Pega la llave."; return; }
+        gmsg.textContent = "Conectando…";
+        try {
+          const c = {repo, token, sha:null, pendiente:false};
+          const rem = await ghLeer(c);
+          if (rem){ c.sha = rem.sha; ghSet(c); ghEstado = ""; const cambio = await ghBajar(false); if (!cambio) await ghSubir(); setStatus("Conectado a GitHub"); }
+          else { ghSet(c); ghEstado = ""; await ghSubir(); setStatus("Conectado: primera copia subida"); }
+          render();
+        } catch(e){ gmsg.textContent = ghError(e); }
+      }}),
+      conectado ? el("button",{text:"Sincronizar ahora",onclick:async () => { gmsg.textContent = "Sincronizando…"; const cambio = await ghBajar(false); if (!cambio) await ghSubir(); render(); }}) : null,
+      conectado ? el("button",{class:"ghost",text:"Desconectar",onclick:() => { try { localStorage.removeItem(K_GH); } catch(e){} ghEstado = ""; render(); setStatus("Desconectado de GitHub"); }}) : null),
+    estadoTxt ? el("p",{class:"small " + (ghEstado ? "red" : "muted"),style:"margin:10px 0 0",text:estadoTxt}) : null,
+    gmsg));
+
   // diagnóstico: dónde se guardan los datos
   const ua = navigator.userAgent;
   const nav = /SamsungBrowser/.test(ua) ? "Samsung Internet" : /EdgA/.test(ua) ? "Edge" : /Firefox/.test(ua) ? "Firefox" : /OPR|Opera/.test(ua) ? "Opera" : /; wv\)/.test(ua) ? "WebView (dentro del APK)" : /Chrome/.test(ua) ? "Chrome" : "Otro";
@@ -852,7 +953,9 @@ try { if (!sessionStorage.getItem("finanzas:origen")) sessionStorage.setItem("fi
   applyData(plain);
   if (recuperado){ try { localStorage.setItem(K_PLAIN, snapshot()); } catch(e){} setStatus("Datos recuperados de la copia interna"); }
   if (!plain){ tab = "ajustes"; setStatus("Bienvenido. Empieza cargando tu respaldo o escribiendo tus datos."); }
-  goMonth(cur);
+  await goMonth(cur);
+  const c = ghCfg();
+  if (c && c.token){ const cambio = await ghBajar(!!plain); if (cambio && !plain){ tab = "resumen"; render(); } }
 })();
 })();
 </script>
