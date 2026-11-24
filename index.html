@@ -295,8 +295,15 @@ async function deriveKey(pin, salt){
   return crypto.subtle.deriveKey({name:"PBKDF2", salt, iterations:200000, hash:"SHA-256"}, base, {name:"AES-GCM", length:256}, false, ["encrypt","decrypt"]);
 }
 const snapshot = () => JSON.stringify({v:1, config, movs});
+// copia interna extra en IndexedDB (por si el navegador borra localStorage)
+function idbOpen(){ return new Promise((res, rej) => { try { const r = indexedDB.open("finanzas", 1); r.onupgradeneeded = () => r.result.createObjectStore("kv"); r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); } catch(e){ rej(e); } }); }
+async function idbSet(k, v){ const db = await idbOpen(); return new Promise((res, rej) => { const tx = db.transaction("kv","readwrite"); tx.objectStore("kv").put(v, k); tx.oncomplete = () => res(); tx.onerror = () => rej(tx.error); }); }
+async function idbGet(k){ const db = await idbOpen(); return new Promise((res, rej) => { const rq = db.transaction("kv").objectStore("kv").get(k); rq.onsuccess = () => res(rq.result); rq.onerror = () => rej(rq.error); }); }
 async function writeNow(){
   const json = snapshot();
+  const ahora = new Date().toISOString();
+  try { localStorage.setItem("finanzas:guardado", ahora); } catch(e){}
+  idbSet("datos", {json, ahora}).catch(() => {});
   if (pinKey){
     const iv = crypto.getRandomValues(new Uint8Array(12));
     const ct = await crypto.subtle.encrypt({name:"AES-GCM", iv}, pinKey, enc.encode(json));
@@ -307,12 +314,18 @@ async function writeNow(){
     localStorage.removeItem(K_ENC);
   }
 }
+let pendiente = false;
 function save(){
-  clearTimeout(saveTimer);
-  saveTimer = setTimeout(() => {
-    saveChain = saveChain.then(writeNow).catch(() => setStatus("No se pudo guardar. ¿El celular está sin espacio?"));
-  }, 400);
+  clearTimeout(saveTimer); pendiente = true;
+  saveTimer = setTimeout(flush, 300);
 }
+function flush(){
+  clearTimeout(saveTimer); if (!pendiente) return; pendiente = false;
+  saveChain = saveChain.then(writeNow).catch(() => setStatus("No se pudo guardar. ¿El celular está sin espacio?"));
+}
+// si cierras la app justo después de anotar, guarda de inmediato
+document.addEventListener("visibilitychange", () => { if (document.hidden) flush(); });
+window.addEventListener("pagehide", flush);
 const saveConfig = save;
 const saveMonth = save;
 let toastT = null;
@@ -714,6 +727,23 @@ function vAjustes(v){
     installEvt ? el("button",{class:"pri",text:"Instalar app",onclick:async () => { installEvt.prompt(); await installEvt.userChoice.catch(()=>{}); installEvt = null; render(); }})
       : el("p",{class:"small muted",text:"En Chrome: menú ⋮ → “Instalar app” o “Agregar a la pantalla principal”. En iPhone (Safari): botón Compartir → “Agregar a pantalla de inicio”."})));
 
+  // diagnóstico: dónde se guardan los datos
+  const ua = navigator.userAgent;
+  const nav = /SamsungBrowser/.test(ua) ? "Samsung Internet" : /EdgA/.test(ua) ? "Edge" : /Firefox/.test(ua) ? "Firefox" : /OPR|Opera/.test(ua) ? "Opera" : /; wv\)/.test(ua) ? "WebView (dentro del APK)" : /Chrome/.test(ua) ? "Chrome" : "Otro";
+  let origen = "-"; try { origen = sessionStorage.getItem("finanzas:origen") || "-"; } catch(e){}
+  const modo = origen.startsWith("android-app://") ? "App (APK)" : matchMedia("(display-mode: standalone)").matches ? "App instalada" : "Pestaña del navegador";
+  let ult = null; try { ult = localStorage.getItem("finanzas:guardado"); } catch(e){}
+  const persist = el("span",{text:"…"});
+  if (navigator.storage && navigator.storage.persisted) navigator.storage.persisted().then(p => persist.textContent = p ? "Sí" : "No").catch(() => persist.textContent = "?"); else persist.textContent = "?";
+  const nMovs = Object.values(movs).reduce((a,l) => a + l.length, 0);
+  v.append(el("div",{class:"card"}, el("h2",{text:"Dónde se guardan tus datos"}),
+    el("div",{class:"row"}, el("span",{class:"muted",text:"Navegador"}), el("span",{text:nav})),
+    el("div",{class:"row"}, el("span",{class:"muted",text:"Abierta como"}), el("span",{text:modo})),
+    el("div",{class:"row"}, el("span",{class:"muted",text:"Guardado protegido"}), persist),
+    el("div",{class:"row"}, el("span",{class:"muted",text:"Movimientos guardados"}), el("span",{text:String(nMovs)})),
+    el("div",{class:"row"}, el("span",{class:"muted",text:"Último guardado"}), el("span",{text: ult ? new Date(ult).toLocaleString("es-CO",{day:"numeric",month:"short",hour:"numeric",minute:"2-digit"}) : "nunca"})),
+    el("p",{class:"small muted",style:"margin:8px 0 0",text:"Los datos se guardan en el navegador que muestra aquí. Si abres la app desde otro navegador u otro ícono, la verás vacía."})));
+
   // backup
   const fileIn = el("input",{type:"file",accept:".json,application/json",class:"vh"});
   const bmsg = el("p",{class:"small"});
@@ -811,13 +841,17 @@ window.addEventListener("beforeinstallprompt", e => { e.preventDefault(); instal
 if ("serviceWorker" in navigator && location.protocol === "https:") navigator.serviceWorker.register("sw.js").catch(() => {});
 if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {});
 
-(function init(){
-  let encStored = null, plain = null;
+try { if (!sessionStorage.getItem("finanzas:origen")) sessionStorage.setItem("finanzas:origen", document.referrer || "-"); } catch(e){}
+(async function init(){
+  let encStored = null, plain = null, recuperado = false;
   try { encStored = JSON.parse(localStorage.getItem(K_ENC) || "null"); plain = JSON.parse(localStorage.getItem(K_PLAIN) || "null"); } catch(e){}
   if (encStored && encStored.ct){ config = JSON.parse(JSON.stringify(EMPTY)); setStatus(""); showLock(encStored); return; }
+  if (!plain){ // intenta la copia interna
+    try { const r = await idbGet("datos"); if (r && r.json){ plain = JSON.parse(r.json); recuperado = true; try { localStorage.setItem("finanzas:guardado", r.ahora); } catch(e){} } } catch(e){}
+  }
   applyData(plain);
+  if (recuperado){ try { localStorage.setItem(K_PLAIN, snapshot()); } catch(e){} setStatus("Datos recuperados de la copia interna"); }
   if (!plain){ tab = "ajustes"; setStatus("Bienvenido. Empieza cargando tu respaldo o escribiendo tus datos."); }
-  
   goMonth(cur);
 })();
 })();
