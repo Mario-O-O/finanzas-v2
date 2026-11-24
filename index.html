@@ -1,0 +1,553 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mis finanzas</title>
+<meta name="theme-color" content="#1f6f5c">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<style>
+:root{
+  --bg:#f6f5f1;--card:#fff;--ink:#1d1f1e;--muted:#6b6f6c;--line:#e4e2dc;
+  --acc:#1f6f5c;--acc-soft:#e3f0ec;--red:#b83a2e;--red-soft:#fbe9e6;--amb:#a86a00;--amb-soft:#fdf2dc;--ok:#1f6f5c;
+  --r:14px;
+}
+@media (prefers-color-scheme:dark){:root{--bg:#141615;--card:#1d201f;--ink:#ecebe6;--muted:#9a9e9b;--line:#2e3230;--acc:#5fc2a4;--acc-soft:#1c312b;--red:#ef7a6c;--red-soft:#3a201d;--amb:#e9b04d;--amb-soft:#352a16;}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+.num,.mono{font-variant-numeric:tabular-nums;font-weight:600}
+.lock{position:fixed;inset:0;background:var(--bg);display:flex;align-items:center;justify-content:center;z-index:10;padding:20px}
+.lock .box{max-width:320px;width:100%;text-align:center}
+.lock input{font-size:26px;text-align:center;letter-spacing:.4em;margin:14px 0}
+.wrap{max-width:980px;margin:0 auto;padding:20px 16px 60px}
+header{display:flex;flex-wrap:wrap;gap:12px;align-items:center;justify-content:space-between;margin-bottom:14px}
+h1{font-size:22px;margin:0;letter-spacing:-.01em}
+.month{display:flex;align-items:center;gap:6px}
+.month span{min-width:140px;text-align:center;font-weight:500;text-transform:capitalize}
+button{font:inherit;cursor:pointer;border:1px solid var(--line);background:var(--card);color:var(--ink);border-radius:10px;padding:7px 12px}
+button:hover{border-color:var(--muted)}
+button.pri{background:var(--acc);border-color:var(--acc);color:#fff}
+@media (prefers-color-scheme:dark){button.pri{color:#0f1a17}}
+button.ghost{border-color:transparent;background:transparent;color:var(--muted);padding:4px 8px}
+button:disabled{opacity:.5;cursor:default}
+nav{display:flex;gap:4px;overflow-x:auto;border-bottom:1px solid var(--line);margin-bottom:18px}
+nav button{border:none;background:none;border-radius:0;padding:10px 12px;color:var(--muted);border-bottom:2px solid transparent;white-space:nowrap}
+nav button.on{color:var(--ink);border-bottom-color:var(--acc);font-weight:500}
+.card{background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:16px;margin-bottom:14px}
+.card h2{font-size:15px;margin:0 0 10px;font-weight:700}
+.grid{display:grid;gap:10px;grid-template-columns:repeat(auto-fit,minmax(150px,1fr))}
+.stat{background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:12px 14px}
+.stat .l{font-size:12.5px;color:var(--muted)}
+.stat .v{font-size:19px;margin-top:2px}
+.hero{border-radius:var(--r);padding:18px;margin-bottom:14px;border:1px solid var(--line)}
+.hero.ok{background:var(--acc-soft)}.hero.warn{background:var(--amb-soft)}.hero.bad{background:var(--red-soft)}
+.hero .t{font-size:13px;color:var(--muted)}
+.hero .big{font-size:30px;margin:2px 0 6px}
+.hero.bad .big{color:var(--red)}.hero.warn .big{color:var(--amb)}.hero.ok .big{color:var(--ok)}
+.hero p{margin:6px 0 0}
+.meter{height:10px;background:var(--line);border-radius:99px;overflow:hidden;margin:10px 0 4px}
+.meter i{display:block;height:100%;background:var(--acc);border-radius:99px}
+.hero.warn .meter i{background:var(--amb)}.hero.bad .meter i{background:var(--red)}
+.row{display:flex;gap:10px;align-items:center;justify-content:space-between;padding:8px 0;border-top:1px solid var(--line)}
+.row:first-child{border-top:none}
+.row .d{color:var(--muted);font-size:12.5px}
+.bar{height:8px;background:var(--acc);border-radius:99px;opacity:.85}
+.catrow{display:grid;grid-template-columns:140px 1fr 110px;gap:10px;align-items:center;padding:5px 0}
+.catrow .bwrap{background:var(--line);border-radius:99px;height:8px}
+input,select{font:inherit;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:9px;padding:7px 9px;width:100%;min-width:0}
+input:focus,select:focus{outline:2px solid var(--acc);outline-offset:-1px}
+label.f{display:flex;flex-direction:column;gap:4px;font-size:12.5px;color:var(--muted)}
+.form{display:grid;gap:10px;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));align-items:end}
+.muted{color:var(--muted)}.small{font-size:12.5px}
+.red{color:var(--red)}.amb{color:var(--amb)}.okc{color:var(--ok)}
+.pill{display:inline-block;font-size:11.5px;padding:2px 8px;border-radius:99px;background:var(--line);color:var(--muted)}
+.pill.red{background:var(--red-soft);color:var(--red)}.pill.okp{background:var(--acc-soft);color:var(--ok)}
+table{width:100%;border-collapse:collapse;font-size:14px}
+th,td{text-align:left;padding:8px 6px;border-top:1px solid var(--line)}
+th{font-weight:500;color:var(--muted);font-size:12.5px;border-top:none}
+td.r,th.r{text-align:right}
+.drop{border:1.5px dashed var(--line);border-radius:var(--r);padding:18px;text-align:center}
+.drop.over{border-color:var(--acc);background:var(--acc-soft)}
+.status{font-size:12px;color:var(--muted);min-height:16px}
+.hide{display:none!important}
+.vh{position:absolute;width:1px;height:1px;opacity:0;overflow:hidden}
+.btnlike{display:inline-block;position:relative;cursor:pointer;border:1px solid var(--line);background:var(--card);border-radius:10px;padding:7px 12px}
+.tip{background:var(--bg);border-radius:10px;padding:10px 12px;margin-top:8px;font-size:14px}
+svg text{fill:var(--muted);font:11px system-ui,sans-serif}
+@media (max-width:560px){.catrow{grid-template-columns:100px 1fr 90px}.hero .big{font-size:25px}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Mis finanzas</h1>
+    <div class="month">
+      <button id="prevM" aria-label="Mes anterior">‹</button>
+      <span id="mLabel"></span>
+      <button id="nextM" aria-label="Mes siguiente">›</button>
+    </div>
+  </header>
+  <div class="status" id="status">Cargando…</div>
+  <nav id="tabs">
+    <button data-t="resumen" class="on">Resumen</button>
+    <button data-t="movs">Movimientos</button>
+    <button data-t="deudas">Deudas</button>
+    <button data-t="plan">Plan para salir de deudas</button>
+    <button data-t="ajustes">Ajustes</button>
+  </nav>
+  <main id="view"></main>
+</div>
+<div class="lock hide" id="lock">
+  <form class="box" id="lockForm">
+    <h1>Mis finanzas</h1>
+    <p class="muted">Escribe tu PIN</p>
+    <input id="pinIn" type="password" inputmode="numeric" autocomplete="off" maxlength="8" aria-label="PIN">
+    <button class="pri" style="width:100%" type="submit">Entrar</button>
+    <p class="small red" id="lockMsg"></p>
+  </form>
+</div>
+
+<script>
+(function(){
+"use strict";
+// ---------- helpers ----------
+const $ = s => document.querySelector(s);
+function el(tag, attrs, ...kids){
+  const e = document.createElement(tag);
+  if (attrs) for (const k in attrs){
+    const v = attrs[k];
+    if (v == null || v === false) continue;
+    if (k === "class") e.className = v;
+    else if (k === "text") e.textContent = v;
+    else if (k.startsWith("on")) e.addEventListener(k.slice(2), v);
+    else if (k === "style") e.setAttribute("style", v);
+    else e.setAttribute(k, v === true ? "" : v);
+  }
+  for (const c of kids.flat()){ if (c == null || c === false) continue; e.append(c instanceof Node ? c : document.createTextNode(String(c))); }
+  return e;
+}
+const fmt = n => (n < 0 ? "−" : "") + "$" + Math.round(Math.abs(n)).toLocaleString("es-CO");
+const num = v => { if (typeof v === "number") return v; const s = String(v||"").replace(/[^\d,.-]/g,"").replace(/\./g,"").replace(",","."); const n = parseFloat(s); return isFinite(n) ? n : 0; };
+const MESES = ["enero","febrero","marzo","abril","mayo","junio","julio","agosto","septiembre","octubre","noviembre","diciembre"];
+const mKey = d => d.getFullYear() + "-" + String(d.getMonth()+1).padStart(2,"0");
+const mName = k => { const [y,m] = k.split("-"); return MESES[+m-1] + " " + y; };
+const addM = (k, n) => { const [y,m] = k.split("-").map(Number); return mKey(new Date(y, m-1+n, 1)); };
+const uid = () => Math.random().toString(36).slice(2,10);
+const CATS = ["Mercado","Transporte","Comida fuera / domicilios","Suscripciones","Salud","Ropa y personal","Entretenimiento","Hogar","Regalos","Otros","Fijo","Pago deuda","Ahorro","Salario","Ingreso extra"];
+const NO_VAR = new Set(["Fijo","Pago deuda","Ahorro"]);
+
+// ---------- state ----------
+const EMPTY = {ingreso:0, ahorroPct:0, tasaSupuesta:26, extraDeuda:0, fijos:[], deudas:[]};
+let config = null;         // loaded config
+const movs = {};           // monthKey -> array
+let cur = mKey(new Date());
+let tab = "resumen";
+// ---------- persistence: everything stays on this phone (localStorage), encrypted when a PIN is set ----------
+const K_PLAIN = "finanzas:datos", K_ENC = "finanzas:cifrado";
+let pinKey = null, pinSalt = null, saveTimer = null, saveChain = Promise.resolve();
+const enc = new TextEncoder(), dec = new TextDecoder();
+const b64 = buf => btoa(String.fromCharCode(...new Uint8Array(buf)));
+const unb64 = s => Uint8Array.from(atob(s), c => c.charCodeAt(0));
+async function deriveKey(pin, salt){
+  const base = await crypto.subtle.importKey("raw", enc.encode(pin), "PBKDF2", false, ["deriveKey"]);
+  return crypto.subtle.deriveKey({name:"PBKDF2", salt, iterations:200000, hash:"SHA-256"}, base, {name:"AES-GCM", length:256}, false, ["encrypt","decrypt"]);
+}
+const snapshot = () => JSON.stringify({v:1, config, movs});
+async function writeNow(){
+  const json = snapshot();
+  if (pinKey){
+    const iv = crypto.getRandomValues(new Uint8Array(12));
+    const ct = await crypto.subtle.encrypt({name:"AES-GCM", iv}, pinKey, enc.encode(json));
+    localStorage.setItem(K_ENC, JSON.stringify({salt:b64(pinSalt), iv:b64(iv), ct:b64(ct)}));
+    localStorage.removeItem(K_PLAIN);
+  } else {
+    localStorage.setItem(K_PLAIN, json);
+    localStorage.removeItem(K_ENC);
+  }
+}
+function save(){
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(() => {
+    saveChain = saveChain.then(writeNow).then(() => setStatus("Guardado en este celular" + (pinKey ? " · protegido con PIN" : ""))).catch(() => setStatus("No se pudo guardar. ¿El celular está sin espacio?"));
+  }, 400);
+}
+const saveConfig = save;
+const saveMonth = save;
+function setStatus(t){ $("#status").textContent = t; }
+function applyData(d){
+  config = Object.assign({}, EMPTY, (d && d.config) || {});
+  config.fijos = Array.isArray(config.fijos) ? config.fijos : [];
+  config.deudas = Array.isArray(config.deudas) ? config.deudas : [];
+  for (const k in movs) delete movs[k];
+  if (d && d.movs && typeof d.movs === "object") for (const k in d.movs) if (/^\d{4}-\d{2}$/.test(k) && Array.isArray(d.movs[k])) movs[k] = d.movs[k];
+}
+async function loadMonth(k){ if (!movs[k]) movs[k] = []; }
+
+// ---------- calculations ----------
+const tasaDe = d => (d.tasaEA == null || d.tasaEA === "" ? config.tasaSupuesta : +d.tasaEA);
+const mensual = ea => Math.pow(1 + ea/100, 1/12) - 1;
+const cuotaMes = d => d.saldo <= 0 ? 0 : (d.pagoUnico ? d.saldo : Math.min(d.cuota, d.saldo));
+function resumenMes(k){
+  const list = movs[k] || [];
+  const fijos = config.fijos.reduce((a,f) => a + (+f.valor||0), 0);
+  const minimos = config.deudas.reduce((a,d) => a + cuotaMes(d), 0);
+  const extras = list.filter(m => m.tipo === "ingreso" && m.categoria !== "Salario").reduce((a,m) => a + m.valor, 0);
+  const ingreso = (+config.ingreso||0) + extras;
+  const ahorro = (+config.ingreso||0) * (+config.ahorroPct||0) / 100;
+  const limite = ingreso - fijos - minimos - ahorro;
+  const varGastos = list.filter(m => m.tipo === "gasto" && !NO_VAR.has(m.categoria));
+  const gastado = varGastos.reduce((a,m) => a + m.valor, 0);
+  const porCat = {};
+  varGastos.forEach(m => porCat[m.categoria] = (porCat[m.categoria]||0) + m.valor);
+  return {fijos, minimos, extras, ingreso, ahorro, limite, gastado, porCat, restante: limite - gastado};
+}
+
+function simular(metodo, extra){
+  // pagoUnico debts are paid in month 1; then a fixed budget (sum of regular minimums + extra) rolls over.
+  let ds = config.deudas.filter(d => d.saldo > 0).map(d => ({...d, bal:+d.saldo, r: mensual(tasaDe(d)), fin:null, interes:0}));
+  const presupuesto = ds.filter(d => !d.pagoUnico).reduce((a,d) => a + (+d.cuota||0), 0) + (metodo === "minimos" ? 0 : extra);
+  let mes = 0, totalInt = 0; const serie = [ds.reduce((a,d) => a + d.bal, 0)];
+  while (ds.some(d => d.bal > 0.5) && mes < 360){
+    mes++;
+    ds.forEach(d => { if (d.bal > 0){ const i = d.bal * d.r; d.bal += i; d.interes += i; totalInt += i; } });
+    // one-off debts
+    ds.forEach(d => { if (d.pagoUnico && d.bal > 0){ d.bal = 0; d.fin = mes; } });
+    let disp = presupuesto;
+    const activas = ds.filter(d => d.bal > 0.5 && !d.pagoUnico);
+    if (metodo === "minimos"){
+      activas.forEach(d => { const p = Math.min(+d.cuota||0, d.bal); d.bal -= p; });
+    } else {
+      activas.forEach(d => { const p = Math.min(+d.cuota||0, d.bal, disp); d.bal -= p; disp -= p; });
+      const orden = activas.filter(d => d.bal > 0.5).sort(metodo === "avalancha" ? (a,b) => b.r - a.r || a.bal - b.bal : (a,b) => a.bal - b.bal || b.r - a.r);
+      for (const d of orden){ if (disp <= 0) break; const p = Math.min(disp, d.bal); d.bal -= p; disp -= p; }
+    }
+    ds.forEach(d => { if (d.bal <= 0.5 && d.fin == null){ d.bal = 0; d.fin = mes; } });
+    serie.push(ds.reduce((a,d) => a + d.bal, 0));
+    if (mes > 2 && serie[mes] >= serie[mes-1] && metodo === "minimos" && serie[mes] > serie[0]) break;
+  }
+  const libre = !ds.some(d => d.bal > 0.5);
+  return {meses: libre ? mes : null, interes: totalInt, deudas: ds, serie};
+}
+
+// ---------- views ----------
+function render(){
+  $("#mLabel").textContent = mName(cur);
+  document.querySelectorAll("#tabs button").forEach(b => b.classList.toggle("on", b.dataset.t === tab));
+  const v = $("#view"); v.replaceChildren();
+  if (!config){ v.append(el("div",{class:"card muted",text:"Cargando tus datos…"})); return; }
+  ({resumen:vResumen, movs:vMovs, deudas:vDeudas, plan:vPlan, ajustes:vAjustes})[tab](v);
+}
+
+function vResumen(v){
+  const r = resumenMes(cur);
+  const pct = r.limite > 0 ? Math.min(100, r.gastado / r.limite * 100) : 100;
+  let cls = "ok", titulo, texto;
+  const hoy = new Date(), esActual = cur === mKey(hoy);
+  const diasMes = new Date(+cur.slice(0,4), +cur.slice(5), 0).getDate();
+  const diasRest = esActual ? diasMes - hoy.getDate() + 1 : diasMes;
+  if (r.limite <= 0){
+    cls = "bad"; titulo = "Este mes no alcanza";
+    texto = "Solo los gastos fijos y las cuotas mínimas ya suman " + fmt(-r.limite) + " más de lo que entra. Cada peso de gasto variable agranda el hueco. Mira la pestaña “Plan”.";
+  } else if (r.gastado > r.limite){
+    cls = "bad"; titulo = "Pasaste tu límite de gasto";
+    texto = "Te pasaste por " + fmt(r.gastado - r.limite) + ". Desde ya, solo lo indispensable.";
+  } else if (pct >= 80){
+    cls = "warn"; titulo = "Cerca del límite";
+    texto = "Te quedan " + fmt(r.restante) + (esActual ? " para " + diasRest + " días: unos " + fmt(r.restante / diasRest) + " por día." : ".");
+  } else {
+    titulo = "Vas bien";
+    texto = "Te quedan " + fmt(r.restante) + (esActual ? " para " + diasRest + " días: unos " + fmt(r.restante / diasRest) + " por día." : ".");
+  }
+  v.append(el("div",{class:"hero "+cls},
+    el("div",{class:"t",text:"Valor crítico de no gasto · lo máximo para gastos variables este mes"}),
+    el("div",{class:"big num",text:fmt(r.limite)}),
+    el("div",{class:"meter"}, el("i",{style:"width:"+pct.toFixed(1)+"%"})),
+    el("div",{class:"small muted"}, "Gastado en variables: ", el("span",{class:"num",text:fmt(r.gastado)})),
+    el("p",{}, el("strong",{text:titulo+". "}), texto)
+  ));
+  v.append(el("div",{class:"grid",style:"margin-bottom:14px"},
+    stat("Ingreso del mes", r.ingreso, r.extras ? "incluye " + fmt(r.extras) + " extra" : null),
+    stat("Gastos fijos", -r.fijos),
+    stat("Cuotas de deudas", -r.minimos),
+    stat("Ahorro (" + (config.ahorroPct||0) + "%)", -r.ahorro),
+    stat("Balance al cierre", r.restante, "si no gastas más", r.restante < 0 ? "red" : "okc")
+  ));
+  // categories
+  const cats = Object.entries(r.porCat).sort((a,b) => b[1]-a[1]);
+  const c = el("div",{class:"card"}, el("h2",{text:"¿En qué se fue la plata?"}));
+  if (!cats.length) c.append(el("p",{class:"muted",text:"Aún no hay gastos este mes. Súbelos en “Movimientos” (pantallazos o a mano)."}));
+  const max = cats.length ? cats[0][1] : 1;
+  cats.forEach(([k,val]) => c.append(el("div",{class:"catrow"},
+    el("span",{text:k}), el("div",{class:"bwrap"}, el("div",{class:"bar",style:"width:"+(val/max*100).toFixed(1)+"%"})),
+    el("span",{class:"num r",style:"text-align:right",text:fmt(val)}))));
+  v.append(c);
+  // history
+  const h = el("div",{class:"card"}, el("h2",{text:"Últimos 6 meses · gastos variables"}));
+  const ks = [5,4,3,2,1,0].map(i => addM(cur,-i));
+  const vals = ks.map(k => movs[k] ? resumenMes(k).gastado : 0);
+  const mx = Math.max(r.limite, ...vals, 1);
+  const W = 600, H = 150, bw = W/6;
+  const svg = document.createElementNS("http://www.w3.org/2000/svg","svg");
+  svg.setAttribute("viewBox","0 0 "+W+" "+(H+24)); svg.setAttribute("width","100%");
+  ks.forEach((k,i) => {
+    const hgt = vals[i]/mx*H, x = i*bw + bw*0.2;
+    const rect = document.createElementNS(svg.namespaceURI,"rect");
+    rect.setAttribute("x",x); rect.setAttribute("y",H-hgt); rect.setAttribute("width",bw*0.6); rect.setAttribute("height",Math.max(hgt,1)); rect.setAttribute("rx",4);
+    rect.setAttribute("fill", r.limite > 0 && vals[i] > r.limite ? "var(--red)" : "var(--acc)");
+    const t = document.createElementNS(svg.namespaceURI,"title"); t.textContent = mName(k)+": "+fmt(vals[i]); rect.append(t);
+    const lab = document.createElementNS(svg.namespaceURI,"text");
+    lab.setAttribute("x",x+bw*0.3); lab.setAttribute("y",H+16); lab.setAttribute("text-anchor","middle"); lab.textContent = MESES[+k.slice(5)-1].slice(0,3);
+    svg.append(rect, lab);
+  });
+  if (r.limite > 0){
+    const y = H - r.limite/mx*H;
+    const ln = document.createElementNS(svg.namespaceURI,"line");
+    ln.setAttribute("x1",0); ln.setAttribute("x2",W); ln.setAttribute("y1",y); ln.setAttribute("y2",y);
+    ln.setAttribute("stroke","var(--amb)"); ln.setAttribute("stroke-dasharray","5 4");
+    svg.append(ln);
+  }
+  h.append(svg, el("div",{class:"small muted",text:"La línea punteada es tu límite de este mes. Las barras rojas lo pasaron."}));
+  v.append(h);
+}
+function stat(l, val, sub, color){
+  return el("div",{class:"stat"}, el("div",{class:"l",text:l}), el("div",{class:"v num "+(color||""),text:fmt(val)}), sub ? el("div",{class:"small muted",text:sub}) : null);
+}
+
+// ----- movements -----
+function vMovs(v){
+  v.append(el("div",{class:"tip",style:"margin:0 0 14px"},"¿Muchos movimientos? Mándale los pantallazos a Claude y pídele las filas; o anótalos aquí apenas gastes, toma 5 segundos."));
+  // manual form
+  const f = {fecha: el("input",{type:"date",value: cur === mKey(new Date()) ? new Date().toISOString().slice(0,10) : cur+"-01"}),
+    desc: el("input",{placeholder:"Ej: Rappi, gasolina, D1"}),
+    valor: el("input",{inputmode:"numeric",placeholder:"25.000"}),
+    tipo: el("select",{}, el("option",{value:"gasto",text:"Gasto"}), el("option",{value:"ingreso",text:"Ingreso"})),
+    cat: el("select",{}, CATS.map(c => el("option",{value:c,text:c})))};
+  const add = el("form",{class:"form",onsubmit:e => { e.preventDefault();
+      const valor = num(f.valor.value); if (!valor){ f.valor.focus(); return; }
+      agregar([{fecha:f.fecha.value, descripcion:f.desc.value.trim() || f.cat.value, valor, tipo:f.tipo.value, categoria:f.cat.value}]);
+      f.desc.value = ""; f.valor.value = ""; render(); }},
+    el("label",{class:"f"},"Fecha",f.fecha), el("label",{class:"f"},"Descripción",f.desc), el("label",{class:"f"},"Valor",f.valor),
+    el("label",{class:"f"},"Tipo",f.tipo), el("label",{class:"f"},"Categoría",f.cat), el("button",{class:"pri",type:"submit",text:"Agregar"}));
+  v.append(el("div",{class:"card"}, el("h2",{text:"Agregar a mano"}), add));
+
+  // list
+  const list = (movs[cur]||[]).slice().sort((a,b) => b.fecha.localeCompare(a.fecha));
+  const c = el("div",{class:"card"}, el("h2",{text:"Movimientos de " + mName(cur) + " (" + list.length + ")"}));
+  if (!list.length) c.append(el("p",{class:"muted",text:"Nada todavía."}));
+  list.forEach(m => {
+    const sel = el("select",{style:"width:auto;padding:3px 6px;font-size:12.5px",onchange:() => { m.categoria = sel.value; saveMonth(cur); }}, CATS.map(x => el("option",{value:x,text:x,selected:x===m.categoria})));
+    c.append(el("div",{class:"row"},
+      el("div",{style:"min-width:0;flex:1"}, el("div",{text:m.descripcion}), el("div",{class:"d"}, m.fecha + " · ", sel)),
+      el("span",{class:"num "+(m.tipo==="ingreso"?"okc":""),text:(m.tipo==="ingreso"?"+":"")+fmt(m.valor)}),
+      el("button",{class:"ghost",title:"Borrar","aria-label":"Borrar",onclick:() => { movs[cur] = movs[cur].filter(x => x.id !== m.id); saveMonth(cur); render(); },text:"✕"})));
+  });
+  v.append(c);
+}
+function agregar(items){
+  const tocados = new Set();
+  items.forEach(it => {
+    const k = (it.fecha||"").slice(0,7) || cur;
+    movs[k] = movs[k] || [];
+    movs[k].push({id:uid(), fecha:it.fecha||cur+"-01", descripcion:String(it.descripcion||"").slice(0,120), valor:Math.abs(num(it.valor)), tipo:it.tipo==="ingreso"?"ingreso":"gasto", categoria:CATS.includes(it.categoria)?it.categoria:"Otros"});
+    tocados.add(k);
+  });
+  tocados.forEach(k => saveMonth(k));
+}
+// ----- debts -----
+function vDeudas(v){
+  const total = config.deudas.reduce((a,d) => a + (+d.saldo||0), 0);
+  const cuotas = config.deudas.reduce((a,d) => a + cuotaMes(d), 0);
+  v.append(el("div",{class:"grid",style:"margin-bottom:14px"}, stat("Deuda total", total), stat("Cuotas este mes", cuotas),
+    stat("Cuotas / ingreso", 0)));
+  const last = v.lastChild.lastChild; last.querySelector(".v").textContent = config.ingreso ? Math.round(cuotas/config.ingreso*100) + "%" : "—";
+  last.append(el("div",{class:"small muted",text:"Lo sano es menos de 30–35%"}));
+  config.deudas.forEach(d => {
+    const inp = (k, ph, type) => { const i = el("input",{value: d[k] == null ? "" : (type==="money" ? Math.round(d[k]).toLocaleString("es-CO") : d[k]), placeholder:ph||"", inputmode:"decimal"});
+      i.addEventListener("change", () => { d[k] = k === "tasaEA" ? (i.value.trim()==="" ? null : num(i.value)) : (type==="money" ? num(i.value) : i.value); saveConfig(); render(); }); return i; };
+    const nombre = el("input",{value:d.nombre}); nombre.addEventListener("change",() => { d.nombre = nombre.value; saveConfig(); });
+    const unico = el("input",{type:"checkbox",style:"width:auto",checked:!!d.pagoUnico,onchange:() => { d.pagoUnico = unico.checked; saveConfig(); render(); }});
+    const pago = el("input",{inputmode:"numeric",placeholder:"Valor pagado"});
+    const ea = tasaDe(d), supuesta = d.tasaEA == null || d.tasaEA === "";
+    const intMes = d.saldo * mensual(ea);
+    v.append(el("div",{class:"card"},
+      el("div",{style:"display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:10px"},
+        el("div",{style:"flex:1"}, nombre),
+        d.saldo <= 0 ? el("span",{class:"pill okp",text:"Pagada"}) : supuesta ? el("span",{class:"pill red",text:"Tasa supuesta: "+ea+"% E.A."}) : el("span",{class:"pill",text:ea+"% E.A."}),
+        el("button",{class:"ghost",title:"Eliminar deuda","aria-label":"Eliminar deuda",text:"✕",onclick:() => { config.deudas = config.deudas.filter(x => x !== d); saveConfig(); render(); }})),
+      el("div",{class:"form"},
+        el("label",{class:"f"},"Saldo",inp("saldo","","money")), el("label",{class:"f"},"Cuota mínima",inp("cuota","","money")),
+        el("label",{class:"f"},"Tasa E.A. % (vacío = no sé)",inp("tasaEA","no sé")),
+        el("label",{class:"f",style:"flex-direction:row;align-items:center;gap:6px"},unico,"Se paga todo de una")),
+      d.saldo > 0 ? el("div",{class:"small muted",style:"margin-top:8px"}, "Te cobra unos ", el("span",{class:"num",text:fmt(intMes)}), " de intereses al mes" + (supuesta ? " (estimado; busca la tasa en tu extracto)." : ".")) : null,
+      d.saldo > 0 ? el("div",{class:"form",style:"margin-top:10px"}, el("label",{class:"f"},"Registrar un pago",pago),
+        el("button",{text:"Registrar pago",onclick:() => { const p = num(pago.value); if (!p) return;
+          d.saldo = Math.max(0, d.saldo - p); saveConfig();
+          agregar([{fecha:new Date().toISOString().slice(0,10), descripcion:"Pago "+d.nombre, valor:p, tipo:"gasto", categoria:"Pago deuda"}]); render(); }})) : null
+    ));
+  });
+  v.append(el("button",{text:"+ Agregar deuda",onclick:() => { config.deudas.push({id:uid(),nombre:"Nueva deuda",saldo:0,cuota:0,tasaEA:null,pagoUnico:false}); saveConfig(); render(); }}));
+  v.append(el("p",{class:"small muted",text:"Consejo: cuando te llegue el extracto, actualiza el saldo real (incluye los intereses que te cobraron)."}));
+}
+
+// ----- plan -----
+function vPlan(v){
+  const r = resumenMes(cur);
+  const extraIn = el("input",{inputmode:"numeric",value:Math.round(config.extraDeuda||0).toLocaleString("es-CO")});
+  extraIn.addEventListener("change", () => { config.extraDeuda = num(extraIn.value); saveConfig(); render(); });
+  const unicas = config.deudas.filter(d => d.pagoUnico && d.saldo > 0);
+  const regMin = config.deudas.filter(d => !d.pagoUnico && d.saldo > 0).reduce((a,d) => a + (+d.cuota||0), 0);
+  const libreDespues = (+config.ingreso||0) - r.fijos - regMin - r.ahorro;
+  const c0 = el("div",{class:"card"}, el("h2",{text:"¿Cuánto le puedes meter de más a las deudas cada mes?"}),
+    el("div",{class:"form"}, el("label",{class:"f"},"Pago extra mensual (además de los mínimos)",extraIn)),
+    el("p",{class:"small muted"}, "Cuando ya no estén las deudas de pago único, te quedan unos ", el("span",{class:"num",text:fmt(libreDespues)}),
+      " al mes después de fijos, cuotas y ahorro. De ahí salen mercado, transporte y gustos; lo que puedas sostener sin endeudarte de nuevo es tu pago extra."));
+  if (unicas.length){
+    const tot = unicas.reduce((a,d) => a + d.saldo, 0);
+    c0.append(el("div",{class:"tip"}, el("strong",{text:"Primero: "}), unicas.map(d => d.nombre).join(", ") + " se paga completa (" + fmt(tot) + "). Ese mes es el más apretado; no uses las tarjetas para cubrir el hueco."));
+  }
+  v.append(c0);
+
+  const extra = +config.extraDeuda || 0;
+  const S = {minimos: simular("minimos", 0), avalancha: simular("avalancha", extra), bola: simular("bola", extra)};
+  const fecha = n => n == null ? "Nunca (los mínimos no alcanzan)" : mName(addM(mKey(new Date()), n));
+  const t = el("table",{}, el("tr",{}, el("th",{text:"Estrategia"}), el("th",{text:"Sales de deudas en"}), el("th",{class:"r",text:"Intereses que pagas"})));
+  [["minimos","Solo mínimos"],["avalancha","Avalancha (mayor tasa primero)"],["bola","Bola de nieve (menor saldo primero)"]].forEach(([k,lab]) => {
+    const s = S[k]; t.append(el("tr",{}, el("td",{text:lab}), el("td",{}, s.meses == null ? el("span",{class:"red",text:fecha(null)}) : el("span",{}, el("span",{class:"num",text:s.meses+" meses"}), el("span",{class:"muted small",text:" · "+fecha(s.meses)}))),
+      el("td",{class:"r num",text:fmt(s.interes)})));
+  });
+  const ahorro = S.minimos.interes - S.avalancha.interes;
+  const c1 = el("div",{class:"card"}, el("h2",{text:"Comparación"}), el("div",{style:"overflow-x:auto"},t));
+  if (extra > 0 && isFinite(ahorro) && ahorro > 0) c1.append(el("div",{class:"tip"},"Con " + fmt(extra) + " extra al mes y avalancha te ahorras ", el("strong",{class:"num",text:fmt(ahorro)}), " en intereses frente a pagar solo mínimos."));
+  if (config.deudas.some(d => d.saldo > 0 && !d.pagoUnico && (d.tasaEA == null || d.tasaEA === ""))) c1.append(el("p",{class:"small muted",text:"Las deudas sin tasa usan " + config.tasaSupuesta + "% E.A. como supuesto. Pon la tasa real (sale en el extracto o en la app) para que el plan sea exacto."}));
+  c1.append(chart([["Solo mínimos",S.minimos.serie,"var(--muted)"],["Avalancha",S.avalancha.serie,"var(--acc)"],["Bola de nieve",S.bola.serie,"var(--amb)"]]));
+  v.append(c1);
+
+  // order
+  const orden = S.avalancha.deudas.slice().sort((a,b) => (b.pagoUnico?1:0) - (a.pagoUnico?1:0) || b.r - a.r);
+  const c2 = el("div",{class:"card"}, el("h2",{text:"Orden recomendado (avalancha)"}));
+  orden.forEach((d,i) => c2.append(el("div",{class:"row"},
+    el("div",{}, el("strong",{text:(i+1)+". "+d.nombre}), el("div",{class:"d",text:(d.pagoUnico?"Pago único":"Tasa "+tasaDe(d)+"% E.A.") + " · saldo " + fmt(d.saldo)})),
+    el("span",{class:"small",text: d.fin ? "Pagada en " + fecha(d.fin) : "—"}))));
+  c2.append(el("div",{class:"tip"},"Cómo se hace: pagas el mínimo en todas, y todo el extra va a la primera de la lista. Cuando la terminas, su cuota pasa a la siguiente. No cierres de afán las tarjetas pagadas: guárdalas sin usar."));
+  v.append(c2);
+}
+function chart(series){
+  const W = 600, H = 170, P = 6;
+  const len = Math.min(Math.max(...series.map(s => s[1].length)), 120);
+  const mx = Math.max(...series.map(s => Math.max(...s[1].slice(0,len))), 1);
+  const ns = "http://www.w3.org/2000/svg", svg = document.createElementNS(ns,"svg");
+  svg.setAttribute("viewBox","0 0 "+W+" "+(H+40)); svg.setAttribute("width","100%"); svg.style.marginTop = "12px";
+  series.forEach(([name,data,col],si) => {
+    const pts = data.slice(0,len).map((y,i) => (P + i/(Math.max(len-1,1))*(W-2*P)).toFixed(1)+","+(P + (1-y/mx)*(H-2*P)).toFixed(1)).join(" ");
+    const pl = document.createElementNS(ns,"polyline"); pl.setAttribute("points",pts); pl.setAttribute("fill","none"); pl.setAttribute("stroke",col); pl.setAttribute("stroke-width","2.2");
+    svg.append(pl);
+    const lx = 10 + si*170;
+    const sw = document.createElementNS(ns,"rect"); sw.setAttribute("x",lx); sw.setAttribute("y",H+18); sw.setAttribute("width",14); sw.setAttribute("height",4); sw.setAttribute("fill",col);
+    const tx = document.createElementNS(ns,"text"); tx.setAttribute("x",lx+20); tx.setAttribute("y",H+24); tx.textContent = name;
+    svg.append(sw,tx);
+  });
+  const ax = document.createElementNS(ns,"text"); ax.setAttribute("x",W-P); ax.setAttribute("y",H+6); ax.setAttribute("text-anchor","end"); ax.textContent = "deuda total en el tiempo · " + len + " meses";
+  svg.append(ax);
+  return svg;
+}
+
+// ----- settings -----
+function vAjustes(v){
+  const money = (obj,k) => { const i = el("input",{inputmode:"numeric",value:Math.round(obj[k]||0).toLocaleString("es-CO")}); i.addEventListener("change",() => { obj[k] = num(i.value); saveConfig(); render(); }); return i; };
+  const plain = (obj,k) => { const i = el("input",{inputmode:"decimal",value:obj[k]??""}); i.addEventListener("change",() => { obj[k] = num(i.value); saveConfig(); render(); }); return i; };
+  v.append(el("div",{class:"card"}, el("h2",{text:"Ingresos"}), el("div",{class:"form"},
+    el("label",{class:"f"},"Ingreso mensual",money(config,"ingreso")),
+    el("label",{class:"f"},"% que quieres ahorrar",plain(config,"ahorroPct")),
+    el("label",{class:"f"},"Tasa supuesta si no sabes (% E.A.)",plain(config,"tasaSupuesta")))));
+  const c = el("div",{class:"card"}, el("h2",{text:"Gastos fijos mensuales"}));
+  config.fijos.forEach(f => {
+    const n = el("input",{value:f.nombre}); n.addEventListener("change",() => { f.nombre = n.value; saveConfig(); });
+    c.append(el("div",{class:"row"}, el("div",{style:"flex:1"},n), el("div",{style:"width:150px"},money(f,"valor")),
+      el("button",{class:"ghost","aria-label":"Quitar",title:"Quitar",text:"✕",onclick:() => { config.fijos = config.fijos.filter(x => x !== f); saveConfig(); render(); }})));
+  });
+  const tot = config.fijos.reduce((a,f) => a + (+f.valor||0), 0);
+  c.append(el("div",{class:"row"}, el("strong",{text:"Total"}), el("strong",{class:"num",text:fmt(tot)})));
+  c.append(el("button",{style:"margin-top:8px",text:"+ Agregar gasto fijo",onclick:() => { config.fijos.push({nombre:"Nuevo",valor:0}); saveConfig(); render(); }}));
+  c.append(el("p",{class:"small muted",text:"Pon aquí lo que pagas sí o sí cada mes. Si el mercado o el transporte son más o menos fijos, agrégalos también: así el límite es más real."}));
+  v.append(c);
+
+  // install
+  const standalone = matchMedia("(display-mode: standalone)").matches || navigator.standalone;
+  if (!standalone) v.append(el("div",{class:"card"}, el("h2",{text:"Instalar en el celular"}),
+    installEvt ? el("button",{class:"pri",text:"Instalar app",onclick:async () => { installEvt.prompt(); await installEvt.userChoice.catch(()=>{}); installEvt = null; render(); }})
+      : el("p",{class:"small muted",text:"En Chrome: menú ⋮ → “Instalar app” o “Agregar a la pantalla principal”. En iPhone (Safari): botón Compartir → “Agregar a pantalla de inicio”."})));
+
+  // backup
+  const fileIn = el("input",{type:"file",accept:".json,application/json",class:"vh"});
+  const bmsg = el("p",{class:"small"});
+  fileIn.addEventListener("change", async () => {
+    const f = fileIn.files[0]; if (!f) return;
+    try {
+      const d = JSON.parse(await f.text());
+      if (!d || !d.config) throw 0;
+      applyData(d); await writeNow(); bmsg.textContent = ""; tab = "resumen"; await goMonth(cur);
+      setStatus("Respaldo cargado");
+    } catch(e){ bmsg.textContent = "Ese archivo no es un respaldo válido de Mis finanzas."; }
+  });
+  v.append(el("div",{class:"card"}, el("h2",{text:"Respaldo"}),
+    el("p",{class:"small muted",text:"Tus datos viven solo en este celular. Descarga un respaldo cada mes: si cambias de celular o borras el navegador, lo cargas y queda todo como estaba. También me lo puedes mandar a Claude para que analice tu mes."}),
+    el("div",{style:"display:flex;gap:8px;flex-wrap:wrap"},
+      el("button",{class:"pri",text:"Descargar respaldo",onclick:() => {
+        const a = el("a",{href:URL.createObjectURL(new Blob([snapshot()],{type:"application/json"})),download:"finanzas-respaldo-"+new Date().toISOString().slice(0,10)+".json"});
+        document.body.append(a); a.click(); a.remove(); }}),
+      el("label",{class:"btnlike"}, "Cargar respaldo", fileIn)),
+    bmsg));
+}
+
+// ---------- wiring ----------
+$("#tabs").addEventListener("click", e => { const b = e.target.closest("button"); if (!b) return; tab = b.dataset.t; render(); });
+async function goMonth(k){ cur = k; await Promise.all([0,1,2,3,4,5].map(i => loadMonth(addM(k,-i)))); render(); }
+$("#prevM").onclick = () => goMonth(addM(cur,-1));
+$("#nextM").onclick = () => goMonth(addM(cur,1));
+render();
+
+// ----- lock, install, offline -----
+function showLock(stored){
+  const lock = $("#lock"); lock.classList.remove("hide");
+  const inp = $("#pinIn"); setTimeout(() => inp.focus(), 50);
+  $("#lockForm").onsubmit = async e => {
+    e.preventDefault();
+    $("#lockMsg").textContent = "";
+    try {
+      const salt = unb64(stored.salt);
+      const key = await deriveKey(inp.value, salt);
+      const pt = await crypto.subtle.decrypt({name:"AES-GCM", iv:unb64(stored.iv)}, key, unb64(stored.ct));
+      applyData(JSON.parse(dec.decode(pt)));
+      pinKey = null; pinSalt = null; await writeNow(); // el PIN ya no se usa: deja los datos sin cifrar
+      inp.value = ""; lock.classList.add("hide");
+      setStatus("Guardado en este celular");
+      await goMonth(cur);
+    } catch(err){ $("#lockMsg").textContent = "PIN incorrecto."; inp.value = ""; }
+  };
+}
+let hiddenAt = 0;
+document.addEventListener("visibilitychange", () => {
+  if (document.hidden) hiddenAt = Date.now();
+  else if (pinKey && hiddenAt && Date.now() - hiddenAt > 60000) location.reload(); // vuelve a pedir el PIN
+});
+let installEvt = null;
+window.addEventListener("beforeinstallprompt", e => { e.preventDefault(); installEvt = e; if (tab === "ajustes") render(); });
+if ("serviceWorker" in navigator && location.protocol === "https:") navigator.serviceWorker.register("sw.js").catch(() => {});
+if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {});
+
+(function init(){
+  let encStored = null, plain = null;
+  try { encStored = JSON.parse(localStorage.getItem(K_ENC) || "null"); plain = JSON.parse(localStorage.getItem(K_PLAIN) || "null"); } catch(e){}
+  if (encStored && encStored.ct){ config = JSON.parse(JSON.stringify(EMPTY)); setStatus(""); showLock(encStored); return; }
+  applyData(plain);
+  if (!plain){ tab = "ajustes"; setStatus("Bienvenido. Empieza cargando tu respaldo o escribiendo tus datos."); }
+  else setStatus("Guardado en este celular");
+  goMonth(cur);
+})();
+})();
+</script>
+</body>
+</html>
