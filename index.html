@@ -135,6 +135,10 @@ td.r,th.r{text-align:right}
 @keyframes coinspin{from{transform:rotateY(0)}to{transform:rotateY(360deg)}}
 .coinwrap{perspective:240px;display:grid;place-items:center}
 @media (prefers-reduced-motion:reduce){.coin{animation:none}}
+.coinvid{overflow:hidden;background:#fff}
+.coinvid video{width:100%;height:100%;object-fit:cover;border-radius:50%;display:block}
+html[data-screen="ajustes"] #view{margin-top:26px}
+html[data-screen="ajustes"] .card{margin-bottom:14px}
 .wide b{display:block;font-size:17px}
 .wide span{font-size:13px;color:rgba(20,20,20,.6)}
 .wide button{margin-left:auto;background:#141414;color:var(--cream);border-color:#141414}
@@ -251,10 +255,34 @@ const CATS = ["Mercado","Transporte","Comida fuera / domicilios","Suscripciones"
 const NO_VAR = new Set(["Fijo","Pago deuda","Ahorro"]);
 
 // ---------- state ----------
-const EMPTY = {ingreso:0, ahorroPct:0, tasaSupuesta:26, extraDeuda:0, fijos:[], deudas:[]};
+const EMPTY = {ingreso:0, ahorroPct:0, tasaSupuesta:26, extraDeuda:0, diaPago:25, fijos:[], deudas:[]};
+// ----- periodos: el "mes" va del día de pago al día anterior del mes siguiente (ej. 25 nov – 24 dic) -----
+const pad2 = n => String(n).padStart(2,"0");
+const diaPagoCfg = () => Math.min(28, Math.max(1, Math.round(+((typeof config !== "undefined" && config && config.diaPago) || 25))));
+function periodo(fecha){ // "YYYY-MM-DD" -> clave del periodo "YYYY-MM" (mes en que empieza)
+  const y = +fecha.slice(0,4), m = +fecha.slice(5,7), d = +fecha.slice(8,10);
+  if (d >= diaPagoCfg()) return y + "-" + pad2(m);
+  const p = new Date(y, m-2, 1); return p.getFullYear() + "-" + pad2(p.getMonth()+1);
+}
+function inicioPeriodo(k){ return k + "-" + pad2(diaPagoCfg()); }
+function finPeriodo(k){ const [y,m] = k.split("-").map(Number); const d = new Date(y, m, diaPagoCfg() - 1); return d.getFullYear()+"-"+pad2(d.getMonth()+1)+"-"+pad2(d.getDate()); }
+function nombrePeriodo(k, corto){
+  const [y,m] = k.split("-").map(Number), dp = diaPagoCfg();
+  if (dp === 1) return corto ? MESES[m-1].slice(0,3) : MESES[m-1] + " " + y;
+  const sig = new Date(y, m, 1), m2 = sig.getMonth();
+  return corto ? MESES[m-1].slice(0,3) + " – " + MESES[m2].slice(0,3) : dp + " " + MESES[m-1].slice(0,3) + " – " + (dp-1) + " " + MESES[m2].slice(0,3);
+}
+const periodoHoy = () => periodo(hoyStr());
+const hoyStr = () => { const d = new Date(); return d.getFullYear()+"-"+pad2(d.getMonth()+1)+"-"+pad2(d.getDate()); };
+const fechaDefecto = k => k === periodoHoy() ? hoyStr() : inicioPeriodo(k);
+function reagrupar(){ // reubica cada movimiento en el periodo que le corresponde
+  const todos = Object.values(movs).flat();
+  for (const k in movs) delete movs[k];
+  todos.forEach(m => { const k = periodo(m.fecha || hoyStr()); (movs[k] = movs[k] || []).push(m); });
+}
 let config = null;         // loaded config
 const movs = {};           // monthKey -> array
-let cur = mKey(new Date());
+let cur = periodoHoy();
 let tab = "resumen";
 // ---------- persistence: everything stays on this phone (localStorage), encrypted when a PIN is set ----------
 const K_PLAIN = "finanzas:datos", K_ENC = "finanzas:cifrado";
@@ -297,6 +325,8 @@ function applyData(d){
   config.deudas.forEach(d => { if (!d.id) d.id = uid(); });
   for (const k in movs) delete movs[k];
   if (d && d.movs && typeof d.movs === "object") for (const k in d.movs) if (/^\d{4}-\d{2}$/.test(k) && Array.isArray(d.movs[k])) movs[k] = d.movs[k];
+  reagrupar();
+  cur = periodoHoy();
 }
 async function loadMonth(k){ if (!movs[k]) movs[k] = []; }
 
@@ -373,12 +403,12 @@ function setBarras(color){
 }
 function drawMonths(){
   const box = $("#months"); box.replaceChildren();
-  const hoyK = mKey(new Date());
+  const hoyK = periodoHoy();
   let keys = []; for (let i = -6; i <= 1; i++) keys.push(addM(hoyK, i));
   if (!keys.includes(cur)) keys = [5,4,3,2,1,0,-1].map(i => addM(cur,-i));
   keys.forEach(k => { const n = (movs[k]||[]).length;
     box.append(el("button",{role:"tab","aria-selected":String(k===cur),class:k===cur?"on":"",onclick:() => goMonth(k)},
-      MESES[+k.slice(5)-1].slice(0,3) + (k.slice(0,4) !== hoyK.slice(0,4) ? " " + k.slice(2,4) : ""), n && k===cur ? el("span",{class:"count",text:String(n)}) : null)); });
+      nombrePeriodo(k, true) + (k.slice(0,4) !== hoyK.slice(0,4) ? " " + k.slice(2,4) : ""), n && k===cur ? el("span",{class:"count",text:String(n)}) : null)); });
   const on = box.querySelector(".on"); if (on) requestAnimationFrame(() => { box.scrollLeft = on.offsetLeft - (box.clientWidth - on.offsetWidth) / 2; });
 }
 function render(){
@@ -436,22 +466,22 @@ function movItem(m, conBorrar){
     el("span",{class:"amt " + (m.tipo==="ingreso"?"okc":""),text:(m.tipo==="ingreso"?"+":"−") + fmt(m.valor)}),
     conBorrar ? el("button",{class:"x","aria-label":"Borrar",text:"✕",onclick:() => { quitarMov(cur, m.id); render(); setStatus("Movimiento borrado"); }}) : null);
 }
-function coin3D(){
-  const star = () => icon([["path",{d:"M12 3.5l2.6 5.3 5.8.8-4.2 4.1 1 5.8L12 16.8l-5.2 2.7 1-5.8-4.2-4.1 5.8-.8z"}]]);
-  const c = el("span",{class:"coin","aria-hidden":"true"});
-  for (let i = -3; i <= 3; i++) c.append(el("i",{style:"transform:translateZ("+(i*0.85).toFixed(2)+"px)"}));   // canto de la moneda
-  c.append(el("i",{class:"f fr"}, star()), el("i",{class:"f b"}, star()));
-  return el("span",{class:"emo coinwrap"}, c);
+function coinVideo(){
+  // Video de la moneda (assets/vid-coin.mp4) recortado en círculo, en bucle y sin sonido
+  const vid = el("video",{src:"assets/vid-coin.mp4",autoplay:true,muted:true,loop:true,playsinline:true,preload:"auto","aria-hidden":"true"});
+  vid.muted = true; vid.play && vid.play().catch(() => {});
+  return el("span",{class:"emo coinvid"}, vid);
 }
 function vResumen(v){
   const r = resumenMes(cur);
   const list = movs[cur] || [];
   const presupuesto = r.gastado + r.libre;
   const pct = presupuesto > 0 ? Math.min(100, r.gastado / presupuesto * 100) : 100;
-  const esActual = cur === mKey(new Date());
-  const diasMes = new Date(+cur.slice(0,4), +cur.slice(5), 0).getDate();
-  const diasRest = esActual ? diasMes - new Date().getDate() + 1 : diasMes;
-  const fechaPago = esActual ? hoy() : cur+"-01";
+  const esActual = cur === periodoHoy();
+  const dIni = new Date(inicioPeriodo(cur)+"T00:00"), dFin = new Date(finPeriodo(cur)+"T00:00"), dHoy = new Date(hoyStr()+"T00:00");
+  const diasPer = Math.round((dFin - dIni)/864e5) + 1;
+  const diasRest = esActual ? Math.round((dFin - dHoy)/864e5) + 1 : diasPer;
+  const fechaPago = fechaDefecto(cur);
   const st = r.libre < 0 ? ["var(--terra)","No alcanza este mes"] : pct >= 80 ? ["var(--yellow)","Cerca del límite"] : ["#7fb24a","Vas bien"];
   v.append(el("div",{class:"hero"},
     el("button",{class:"circbtn","aria-label":"Ver plan de deudas",onclick:() => irA("plan")}, IC.arrow()),
@@ -459,7 +489,7 @@ function vResumen(v){
     el("div",{class:"big num",text:fmt(r.libre)}),
     el("span",{class:"state"}, el("i",{style:"background:"+st[0]}), st[1]),
     el("div",{class:"meter"}, el("i",{style:"width:"+pct.toFixed(1)+"%"})),
-    el("div",{class:"perday",text: r.libre > 0 && esActual ? "Unos " + fmt(r.libre/diasRest) + " por día hasta fin de mes" : r.libre < 0 ? "Te faltan " + fmt(-r.libre) + " para cubrir pagos" : ""})));
+    el("div",{class:"perday",text: r.libre > 0 && esActual ? "Unos " + fmt(r.libre/diasRest) + " por día hasta el " + (+finPeriodo(cur).slice(8)) + " " + MES_C[+finPeriodo(cur).slice(5,7)-1] : r.libre < 0 ? "Te faltan " + fmt(-r.libre) + " para cubrir pagos" : ""})));
 
   const items = pagosDelMes(list, fechaPago);
   const pend = items.filter(x => !x.hecho);
@@ -473,7 +503,7 @@ function vResumen(v){
     el("button",{class:"gobtn","aria-label":"Anotar",onclick:() => openQuick()}, icon([["path",{d:"M12 5v14M5 12h14"}]])));
   v.append(el("div",{class:"bento"}, terra, yellow));
 
-  if (!r.sueldoReg && config.ingreso) v.append(el("div",{class:"wide"}, coin3D(),
+  if (!r.sueldoReg && config.ingreso) v.append(el("div",{class:"wide"}, coinVideo(),
     el("div",{}, el("b",{text:"¿Llegó el sueldo?"}), el("span",{class:"num",text:fmt(config.ingreso)})),
     el("button",{class:"small",text:"Sí, llegó",onclick:() => { agregar([{fecha:fechaPago, descripcion:"Sueldo", valor:config.ingreso, tipo:"ingreso", categoria:"Salario"}]); render(); setStatus("Sueldo registrado"); }})));
 
@@ -492,7 +522,7 @@ function vMovs(v){
   const list = (movs[cur]||[]).slice().sort((a,b) => b.fecha.localeCompare(a.fecha));
   const cats = Object.entries(r.porCat).sort((a,b) => b[1]-a[1]).slice(0,4);
   v.append(el("div",{class:"card"},
-    el("div",{class:"small muted",style:"font-weight:500",text:"Gastado en el día a día"}),
+    el("div",{class:"small muted",style:"font-weight:500",text:"Gastado en el día a día · " + nombrePeriodo(cur)}),
     el("div",{class:"num",style:"font-size:36px;font-weight:300;letter-spacing:-.02em;margin-top:2px",text:fmt(r.gastado)}),
     cats.length ? el("div",{class:"chipsum"}, cats.map(([k,val]) => el("span",{}, k + " · " + fmt(val)))) : null));
   if (!list.length){ v.append(el("p",{class:"muted",style:"margin:18px 2px",text:"Nada este mes. Toca + para anotar un gasto o ingreso."})); return; }
@@ -507,9 +537,9 @@ function vMovs(v){
 function agregar(items){
   const tocados = new Set();
   items.forEach(it => {
-    const k = (it.fecha||"").slice(0,7) || cur;
+    const k = it.fecha ? periodo(it.fecha) : cur;
     movs[k] = movs[k] || [];
-    movs[k].push({id:uid(), fecha:it.fecha||cur+"-01", descripcion:String(it.descripcion||"").slice(0,120), valor:Math.abs(num(it.valor)), tipo:it.tipo==="ingreso"?"ingreso":"gasto", categoria:CATS.includes(it.categoria)?it.categoria:"Otros", ref:it.ref||null});
+    movs[k].push({id:uid(), fecha:it.fecha||fechaDefecto(cur), descripcion:String(it.descripcion||"").slice(0,120), valor:Math.abs(num(it.valor)), tipo:it.tipo==="ingreso"?"ingreso":"gasto", categoria:CATS.includes(it.categoria)?it.categoria:"Otros", ref:it.ref||null});
     tocados.add(k);
   });
   tocados.forEach(k => saveMonth(k));
@@ -522,7 +552,7 @@ function quitarMov(k, id){
 function pagarDeuda(d, valor){
   if (!(valor > 0)) return;
   d.saldo = Math.max(0, d.saldo - valor); saveConfig();
-  agregar([{fecha: cur === mKey(new Date()) ? hoy() : cur+"-01", descripcion:"Pago "+d.nombre, valor, tipo:"gasto", categoria:"Pago deuda", ref:"deuda:"+d.id}]);
+  agregar([{fecha: fechaDefecto(cur), descripcion:"Pago "+d.nombre, valor, tipo:"gasto", categoria:"Pago deuda", ref:"deuda:"+d.id}]);
 }
 // ----- debts -----
 let deudaAbierta = null;
@@ -534,10 +564,9 @@ function vDeudas(v){
   v.append(el("p",{class:"lead",text:"Tus cuotas son el " + pctIng + "% de tu ingreso" + (pctIng > 35 ? " (lo sano es menos de 35%)." : ".")}));
 
   // pagos del mes (checklist)
-  const esActual = cur === mKey(new Date());
-  const items = pagosDelMes(movs[cur]||[], esActual ? hoy() : cur+"-01");
+  const items = pagosDelMes(movs[cur]||[], fechaDefecto(cur));
   const hechos = items.filter(x => x.hecho).length;
-  const c = el("div",{class:"card"}, el("h2",{}, "Este mes ", el("span",{class:"pill",text:hechos + "/" + items.length})));
+  const c = el("div",{class:"card"}, el("h2",{}, "Este periodo ", el("span",{class:"pill",text:hechos + "/" + items.length})), el("div",{class:"small muted",style:"margin:-6px 0 6px",text:nombrePeriodo(cur)}));
   items.forEach(x => c.append(el("div",{class:"row"},
     el("div",{style:"min-width:0"}, el("div",{style:"font-weight:500"+(x.hecho?";text-decoration:line-through;opacity:.55":""),text:x.nombre}),
       el("div",{class:"d num",text: x.deuda && x.pag > 0 && !x.hecho ? "Pagado " + fmt(x.pag) + " de " + fmt(x.valor) : fmt(x.valor)})),
@@ -594,10 +623,16 @@ function vPlan(v){
   v.append(ch);
 
   const orden = A.deudas.slice().sort((a,b) => (b.pagoUnico?1:0) - (a.pagoUnico?1:0) || b.r - a.r);
-  const c2 = el("div",{class:"card"}, el("h2",{text:"En este orden"}));
+  const c2 = el("div",{class:"card"}, el("div",{style:"display:flex;justify-content:space-between;align-items:center;margin-bottom:6px"},
+    el("h2",{style:"margin:0",text:"En este orden"}),
+    el("button",{class:"small",text:"Editar deudas",onclick:() => irA("deudas")})));
+  if (!orden.length) c2.append(el("p",{class:"muted",text:"No tienes deudas pendientes. 🎉"}));
   orden.forEach((d,i) => c2.append(el("div",{class:"order"}, el("span",{class:"n",text:String(i+1)}),
     el("div",{}, el("b",{text:d.nombre}), el("span",{text:(d.pagoUnico ? "Pago único" : tasaDe(d) + "% E.A.") + (d.fin ? " · lista en " + fecha(d.fin) : "")})))));
-  c2.append(el("div",{class:"tip",text:"Paga el mínimo en todas y todo el extra a la primera. Cuando la termines, su cuota pasa a la siguiente."}));
+  const pagadas = config.deudas.filter(d => !(d.saldo > 0));
+  if (pagadas.length) c2.append(el("div",{style:"margin-top:6px"}, pagadas.map(d => el("div",{class:"order",style:"opacity:.55"},
+    el("span",{class:"n",style:"background:var(--lime);color:#141414",text:"✓"}), el("div",{}, el("b",{style:"text-decoration:line-through",text:d.nombre}), el("span",{text:"Pagada"}))))));
+  c2.append(el("div",{class:"tip",text:"Paga el mínimo en todas y todo el extra a la primera. Cuando la termines, su cuota pasa a la siguiente. Esta lista se arma sola con tus deudas: para agregar, cambiar o quitar una, toca “Editar deudas”."}));
   v.append(c2);
 }
 function chart(series){
@@ -627,10 +662,14 @@ function vAjustes(v){
   const nom = el("input",{value:config.nombre||"",placeholder:"Ej: Mario",maxlength:"30"});
   nom.addEventListener("change", () => { config.nombre = nom.value.trim(); saveConfig(); render(); });
   v.append(el("div",{class:"card"}, el("h2",{text:"Tú"}), el("label",{class:"f"},"Tu nombre (para el saludo)",nom)));
+  const dpIn = el("input",{inputmode:"numeric",value:String(diaPagoCfg()),maxlength:"2"});
+  dpIn.addEventListener("change", () => { const n = Math.round(num(dpIn.value)); config.diaPago = Math.min(28, Math.max(1, n || 1)); reagrupar(); cur = periodoHoy(); saveConfig(); render(); setStatus("Periodo: " + nombrePeriodo(cur)); });
   v.append(el("div",{class:"card"}, el("h2",{text:"Ingresos"}), el("div",{class:"form"},
     el("label",{class:"f"},"Ingreso mensual",money(config,"ingreso")),
+    el("label",{class:"f"},"Día en que te pagan",dpIn),
     el("label",{class:"f"},"% que quieres ahorrar",plain(config,"ahorroPct")),
-    el("label",{class:"f"},"Tasa supuesta si no sabes (% E.A.)",plain(config,"tasaSupuesta")))));
+    el("label",{class:"f"},"Tasa supuesta si no sabes (% E.A.)",plain(config,"tasaSupuesta"))),
+    el("p",{class:"small muted",style:"margin:10px 0 0",text:"Tu mes va del día de pago al día anterior del mes siguiente (ahora: " + nombrePeriodo(periodoHoy()) + "). Pon 1 para usar meses normales."})));
   const c = el("div",{class:"card"}, el("h2",{text:"Gastos fijos mensuales"}));
   config.fijos.forEach(f => {
     const n = el("input",{value:f.nombre}); n.addEventListener("change",() => { f.nombre = n.value; saveConfig(); });
@@ -686,7 +725,7 @@ function openQuick(){
   const amt = el("input",{class:"amount num",inputmode:"numeric",placeholder:"$0","aria-label":"Valor"});
   amt.addEventListener("input", () => { const n = Math.round(num(amt.value)); amt.value = n ? "$" + n.toLocaleString("es-CO") : ""; });
   const desc = el("input",{placeholder:"Descripción (opcional): Rappi, bus, D1…"});
-  const fecha = el("input",{type:"date",value: cur === mKey(new Date()) ? hoy() : cur+"-01"});
+  const fecha = el("input",{type:"date",value: fechaDefecto(cur)});
   const chips = el("div",{class:"chips"});
   const seg = el("div",{class:"seg"});
   const preview = el("p",{class:"small preview",style:"text-align:center;margin:0 0 10px"});
