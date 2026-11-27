@@ -24,6 +24,7 @@ html[data-screen="movs"]{--bg:#f1e9c8}
 html[data-screen="deudas"]{--bg:#f5ddcd}
 html[data-screen="plan"]{--bg:#e8eecd}
 html[data-screen="ajustes"]{--bg:#e4ebf5}
+html[data-screen="sim"]{--bg:#f3e6d3}
 html[data-screen]:not([data-screen="resumen"]){color-scheme:light;--ink:#141414;--muted:rgba(20,20,20,.55);--card:rgba(255,255,255,.55);--card2:rgba(20,20,20,.06);--line:rgba(20,20,20,.09);
   --acc:#141414;--amb:#8a5f00;--ok:#2f6b2a;--red:#b23a22;--red-soft:#ffd9cf}
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
@@ -124,7 +125,7 @@ td.r,th.r{text-align:right}
 .tile .sub{font-size:13px;margin:0 4px 12px;opacity:.65;font-weight:500}
 .tile .gobtn{align-self:flex-end;width:52px;height:52px;border-radius:50%;background:#141414;color:var(--yellow);border:none;display:grid;place-items:center;padding:0}
 .wide{background:var(--cream);color:#141414;border-radius:34px;padding:12px 12px 12px 14px;display:flex;align-items:center;gap:14px;margin-top:10px}
-.wide .emo{width:54px;height:54px;border-radius:50%;background:#fff;display:grid;place-items:center;font-size:24px;flex:0 0 auto;background: #000000;}
+.wide .emo{width:54px;height:54px;border-radius:50%;background:#fff;display:grid;place-items:center;font-size:24px;flex:0 0 auto}
 /* moneda 3D que gira */
 .coin{width:40px;height:40px;position:relative;transform-style:preserve-3d;animation:coinspin 2.8s linear infinite}
 .coin i{position:absolute;inset:0;border-radius:50%;background:#d98a1c}
@@ -136,7 +137,7 @@ td.r,th.r{text-align:right}
 .coinwrap{perspective:240px;display:grid;place-items:center}
 @media (prefers-reduced-motion:reduce){.coin{animation:none}}
 .coinvid{overflow:hidden;background:#fff}
-.coinvid video{width:100%;height:100%;object-fit:cover;border-radius:50%;display:block;position: relative;left: -1px;}
+.coinvid video{width:100%;height:100%;object-fit:cover;border-radius:50%;display:block}
 html[data-screen="ajustes"] #view{margin-top:26px}
 html[data-screen="ajustes"] .card{margin-bottom:14px}
 .wide b{display:block;font-size:17px}
@@ -196,13 +197,55 @@ html[data-screen="ajustes"] .card{margin-bottom:14px}
 .vh{position:absolute;width:1px;height:1px;opacity:0;overflow:hidden}
 .btnlike{display:inline-block;position:relative;cursor:pointer;border:1.5px solid var(--line);border-radius:99px;padding:10px 18px;font-weight:500}
 svg text{fill:var(--muted);font:12px "Manrope",system-ui,sans-serif}
+
+/* simulador */
+.simtop{display:grid;grid-template-columns:repeat(3,1fr);background:var(--card);border-radius:var(--r);padding:18px 8px;margin-bottom:12px;text-align:center}
+.simtop>div{padding:0 6px}
+.simtop>div+div{border-left:1px solid var(--line)}
+.simtop .l{font-size:12.5px;color:var(--muted);font-weight:500;line-height:1.25}
+.simtop .v{font-size:19px;font-weight:500;letter-spacing:-.02em;margin-top:6px}
+.simtop .v.big{font-size:23px}
+.pre{display:flex;align-items:center;gap:6px;background:var(--card2);border-radius:18px;padding:0 15px}
+.pre span{color:var(--muted);font-weight:500}
+.pre input{background:transparent;padding:13px 0;border:none;border-radius:0}
+.simbig{font-size:22px;font-weight:500}
+.pre.mini{flex:0 0 132px;padding:0 12px;border-radius:14px}
+.pre.mini input{padding:9px 0;font-size:15px;text-align:right}
+.simbar{display:flex;height:16px;border-radius:99px;overflow:hidden;background:var(--card2);margin:0 2px 14px}
+.simbar i{flex-basis:0;min-width:0;transition:flex-grow .25s ease}
+.simbar i.rest{background:repeating-linear-gradient(135deg,rgba(20,20,20,.08) 0 6px,transparent 6px 12px)}
+.simblk{background:var(--card);border-radius:26px;margin-bottom:10px;overflow:hidden}
+.simcab{width:100%;display:flex;align-items:center;gap:10px;border:none;border-radius:0;padding:16px 16px;text-align:left;background:transparent}
+.simcab .dot{width:11px;height:11px;border-radius:50%;flex:0 0 auto}
+.simcab .nm{flex:1;min-width:0;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.simcab b{font-weight:500;font-size:16px}
+.simcab .chev{display:grid;transition:transform .25s}
+.simcab .chev svg{width:18px;height:18px}
+.simcab:not(.on) .chev{transform:rotate(180deg)}
+.simitems{padding:0 16px 14px}
+.simit{padding:8px 0 10px;border-top:1px solid var(--line)}
+.simith{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.simnm{background:transparent;padding:4px 0;border-radius:0;font-size:14px;color:var(--muted);font-weight:500}
+.simnm:focus{border-color:transparent;border-bottom:1.5px solid var(--ink);color:var(--ink)}
+.simrow{display:flex;align-items:center;gap:14px;margin-top:4px}
+.simacc{display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end;justify-content:space-between;padding-top:12px;border-top:1px solid var(--line)}
+input[type=range]{-webkit-appearance:none;appearance:none;flex:1;min-width:0;height:28px;padding:0;background:transparent;border:none;border-radius:0}
+input[type=range]:focus{border:none}
+input[type=range]::-webkit-slider-runnable-track{height:4px;border-radius:99px;background:linear-gradient(90deg,#141414 var(--p,0%),rgba(20,20,20,.14) var(--p,0%))}
+input[type=range]::-moz-range-track{height:4px;border-radius:99px;background:linear-gradient(90deg,#141414 var(--p,0%),rgba(20,20,20,.14) var(--p,0%))}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:16px;height:30px;margin-top:-13px;border-radius:99px;background:#fff;border:3px solid #141414;box-shadow:0 2px 6px rgba(0,0,0,.2)}
+input[type=range]::-moz-range-thumb{width:12px;height:26px;border-radius:99px;background:#fff;border:3px solid #141414}
+input[type=range]:active::-webkit-slider-thumb{transform:scale(1.1)}
+.acts2{display:flex;gap:8px;flex:0 0 auto}
 </style>
 </head>
 <body>
 <div class="wrap">
   <header class="appbar">
     <div><h1 class="title" id="pageTitle">Mis finanzas</h1><div class="subt" id="subTitle"></div></div>
+    <div class="acts2"><button class="avatar" id="simBtn" aria-label="Simulador"><svg class="i" viewBox="0 0 24 24"><path d="M4 7h9M17 7h3M4 17h3M11 17h9"/><circle cx="15" cy="7" r="2.2"/><circle cx="9" cy="17" r="2.2"/></svg></button>
     <button class="avatar" id="avatar" aria-label="Ajustes"><svg class="i g" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg><svg class="i x" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></svg></button>
+  </div>
   </header>
   <div class="months" id="months" role="tablist" aria-label="Mes"></div>
   <main id="view"></main>
@@ -475,7 +518,7 @@ function simular(metodo, extra){
 }
 
 // ---------- views ----------
-const TITULOS = {resumen:"Mis\nfinanzas", movs:"Movi-\nmientos", deudas:"Pagos y\ndeudas", plan:"Plan de\ndeudas", ajustes:"Ajustes"};
+const TITULOS = {resumen:"Mis\nfinanzas", movs:"Movi-\nmientos", deudas:"Pagos y\ndeudas", plan:"Plan de\ndeudas", sim:"Simu-\nlador", ajustes:"Ajustes"};
 const MES_C = ["ene","feb","mar","abr","may","jun","jul","ago","sep","oct","nov","dic"];
 const DIAS_C = ["dom","lun","mar","mié","jue","vie","sáb"];
 let lastTab = null;
@@ -500,6 +543,7 @@ function render(){
   const d = new Date(), h = d.getHours();
   const nombre = (config && config.nombre || "").trim();
   $("#avatar").classList.toggle("on", tab === "ajustes");
+  $("#simBtn").classList.toggle("on", tab === "sim"); $("#simBtn").setAttribute("aria-label", tab === "sim" ? "Cerrar simulador" : "Simulador");
   $("#avatar").setAttribute("aria-label", tab === "ajustes" ? "Cerrar ajustes" : "Ajustes");
   $("#pageTitle").textContent = TITULOS[tab];
   $("#subTitle").textContent = tab === "resumen" ? (h < 12 ? "Buen día" : h < 19 ? "Buenas tardes" : "Buenas noches") + (nombre ? ", " + nombre : "") + " · " + DIAS_C[d.getDay()] + " " + d.getDate() + " " + MES_C[d.getMonth()] + "." : "";
@@ -512,7 +556,7 @@ function render(){
   if (lastTab !== tab){ v.style.animation = "none"; void v.offsetWidth; v.style.animation = ""; lastTab = tab; }
   setBarras();
   if (!config){ v.append(el("div",{class:"card muted",text:"Cargando tus datos…"})); return; }
-  ({resumen:vResumen, movs:vMovs, deudas:vDeudas, plan:vPlan, ajustes:vAjustes})[tab](v);
+  ({resumen:vResumen, movs:vMovs, deudas:vDeudas, plan:vPlan, sim:vSim, ajustes:vAjustes})[tab](v);
 }
 
 const SVGNS = "http://www.w3.org/2000/svg";
@@ -766,6 +810,88 @@ function chart(series){
   return svg;
 }
 
+// ----- simulador de presupuesto -----
+const SIM_COL = ["#6f9be0","#8cc96a","#f4d55a","#e2855f","#b59bd8","#7cc4b8"];
+function simDatos(){
+  if (!config.sim){
+    const base = Math.max(0, Math.round(resumenMes(cur).libre / 1000) * 1000);
+    config.sim = {presupuesto: base || 800000, bloques:[
+      {id:uid(), nombre:"Fines de semana", abierto:true, items:[{id:uid(), nombre:"Fin de semana 1", valor:100000},{id:uid(), nombre:"Fin de semana 2", valor:100000},{id:uid(), nombre:"Fin de semana 3", valor:100000},{id:uid(), nombre:"Fin de semana 4", valor:100000}]},
+      {id:uid(), nombre:"Festivos y Navidad", abierto:false, items:[{id:uid(), nombre:"Festivo", valor:65000},{id:uid(), nombre:"Navidad", valor:100000}]},
+      {id:uid(), nombre:"Regalos", abierto:false, items:[{id:uid(), nombre:"Regalos", valor:120000}]}]};
+  }
+  return config.sim;
+}
+let simT = null;
+const simGuardar = () => { clearTimeout(simT); simT = setTimeout(saveConfig, 500); };
+// si cierras la app justo después de mover algo, igual se guarda
+["pagehide","visibilitychange"].forEach(ev => window.addEventListener(ev, () => { if (simT && (ev === "pagehide" || document.hidden)){ clearTimeout(simT); simT = null; saveConfig(); } }));
+function vSim(v){
+  const S = simDatos();
+  const tot = b => b.items.reduce((a, it) => a + (+it.valor || 0), 0);
+  const plan = () => S.bloques.reduce((a, b) => a + tot(b), 0);
+  // resumen arriba
+  const sPlan = el("div",{class:"v num"}), sCol = el("div",{class:"v num big"}), sMar = el("div",{class:"v num"});
+  v.append(el("div",{class:"simtop"},
+    el("div",{}, el("div",{class:"l",text:"Gasto planificado"}), sPlan),
+    el("div",{}, el("div",{class:"l",text:"Colchón libre"}), sCol),
+    el("div",{}, el("div",{class:"l",text:"Margen libre"}), sMar)));
+  // presupuesto total
+  const pIn = el("input",{inputmode:"numeric",class:"num simbig",value:Math.round(S.presupuesto).toLocaleString("es-CO")});
+  pIn.addEventListener("input", () => { S.presupuesto = num(pIn.value); actualizar(); simGuardar(); });
+  pIn.addEventListener("blur", () => { pIn.value = Math.round(S.presupuesto).toLocaleString("es-CO"); render(); });
+  const libre = resumenMes(cur).libre;
+  v.append(el("div",{class:"card"}, el("label",{class:"f"}, "Presupuesto total disponible (COP)", el("div",{class:"pre"}, el("span",{text:"$"}), pIn)),
+    libre > 0 ? el("button",{class:"small",style:"margin-top:10px",onclick:() => { S.presupuesto = Math.round(libre); saveConfig(); render(); }}, "Usar lo libre de este mes · ", el("span",{class:"num",text:fmt(libre)})) : null));
+  // barra de distribución
+  const barra = el("div",{class:"simbar"});
+  v.append(el("div",{class:"sec"}, "Distribución por bloques"), barra);
+  const refs = [];
+  const maxSl = () => Math.max(S.presupuesto, 100000);
+  S.bloques.forEach((b, bi) => {
+    const col = SIM_COL[bi % SIM_COL.length];
+    const pctEl = el("span",{class:"small muted num"}), totEl = el("b",{class:"num"});
+    const cuerpo = el("div",{class:"simitems" + (b.abierto ? "" : " hide")});
+    const cab = el("button",{class:"simcab",onclick:() => { b.abierto = !b.abierto; cuerpo.classList.toggle("hide", !b.abierto); cab.classList.toggle("on", b.abierto); simGuardar(); }},
+      el("i",{class:"dot",style:"background:" + col}), el("span",{class:"nm",text:b.nombre + " (" + b.items.length + ")"}), pctEl, totEl, el("span",{class:"chev"}, icon([["path",{d:"M6 15l6-6 6 6"}]])));
+    cab.classList.toggle("on", !!b.abierto);
+    b.items.forEach(it => {
+      const sl = el("input",{type:"range",min:"0",max:String(maxSl()),step:"5000",value:String(it.valor || 0),"aria-label":it.nombre,style:"--c:" + col});
+      const vin = el("input",{inputmode:"numeric",class:"num",value:Math.round(it.valor || 0).toLocaleString("es-CO")});
+      const pinta = () => { const p = (+sl.value / +sl.max) * 100; sl.style.setProperty("--p", p + "%"); };
+      sl.addEventListener("input", () => { it.valor = +sl.value; vin.value = it.valor.toLocaleString("es-CO"); pinta(); actualizar(); simGuardar(); });
+      vin.addEventListener("input", () => { it.valor = num(vin.value); if (it.valor > +sl.max) sl.max = String(it.valor); sl.value = String(it.valor); pinta(); actualizar(); simGuardar(); });
+      vin.addEventListener("blur", () => { vin.value = Math.round(it.valor).toLocaleString("es-CO"); });
+      const nm = el("input",{class:"simnm",value:it.nombre,"aria-label":"Nombre"});
+      nm.addEventListener("change", () => { it.nombre = nm.value.trim() || "Sin nombre"; simGuardar(); });
+      cuerpo.append(el("div",{class:"simit"},
+        el("div",{class:"simith"}, nm, el("button",{class:"ghost small","aria-label":"Quitar",onclick:() => { b.items = b.items.filter(x => x !== it); saveConfig(); render(); }}, "✕")),
+        el("div",{class:"simrow"}, sl, el("div",{class:"pre mini"}, el("span",{text:"$"}), vin))));
+      requestAnimationFrame(pinta);
+    });
+    const bn = el("input",{class:"simnm",value:b.nombre,"aria-label":"Nombre del bloque"});
+    bn.addEventListener("change", () => { b.nombre = bn.value.trim() || "Bloque"; saveConfig(); render(); });
+    cuerpo.append(el("div",{class:"simacc"},
+      el("button",{class:"small",onclick:() => { b.items.push({id:uid(), nombre:"Nuevo gasto", valor:0}); b.abierto = true; saveConfig(); render(); }}, "+ Agregar gasto"),
+      el("label",{class:"f",style:"flex:1;min-width:150px"}, "Nombre del bloque", bn),
+      el("button",{class:"ghost small",style:"color:var(--red)",onclick:e => { const t = e.currentTarget; if (!t.dataset.ok){ t.dataset.ok = "1"; t.textContent = "¿Seguro? toca otra vez"; setTimeout(() => { delete t.dataset.ok; t.textContent = "Borrar bloque"; }, 3000); return; }
+        S.bloques = S.bloques.filter(x => x !== b); saveConfig(); render(); }}, "Borrar bloque")));
+    v.append(el("div",{class:"simblk"}, cab, cuerpo));
+    refs.push({b, col, pctEl, totEl});
+  });
+  v.append(el("button",{class:"small",style:"margin-top:4px",onclick:() => { S.bloques.push({id:uid(), nombre:"Nuevo bloque", abierto:true, items:[{id:uid(), nombre:"Gasto", valor:0}]}); saveConfig(); render(); }}, "+ Nuevo bloque"));
+  v.append(el("div",{class:"tip",text:"Esto es solo una simulación: no crea movimientos ni cambia tu saldo. Juega con los valores hasta que el colchón te quede tranquilo."}));
+  function actualizar(){
+    const P = plan(), T = S.presupuesto, C = T - P, M = T > 0 ? C / T * 100 : 0;
+    sPlan.textContent = fmt(P); sCol.textContent = fmt(C); sMar.textContent = Math.round(M) + "%";
+    sCol.className = "v num big " + (C < 0 ? "red" : "okc"); sMar.className = "v num " + (C < 0 ? "red" : "");
+    barra.replaceChildren(...refs.map(r => { const t = tot(r.b); return el("i",{style:"background:" + r.col + ";flex-grow:" + Math.max(t, 0)}); }),
+      C > 0 ? el("i",{class:"rest",style:"flex-grow:" + C}) : null);
+    refs.forEach(r => { const t = tot(r.b); r.totEl.textContent = fmt(t); r.pctEl.textContent = (T > 0 ? Math.round(t / T * 100) : 0) + "%"; });
+  }
+  actualizar();
+}
+
 // ----- settings -----
 function vAjustes(v){
   const money = (obj,k) => { const i = el("input",{inputmode:"numeric",value:Math.round(obj[k]||0).toLocaleString("es-CO")}); i.addEventListener("change",() => { obj[k] = num(i.value); saveConfig(); render(); }); return i; };
@@ -871,6 +997,7 @@ function vAjustes(v){
 function irA(t){ if (tab === t) return; tab = t; render(); window.scrollTo({top:0}); }
 $("#tabs").addEventListener("click", e => { const b = e.target.closest("button[data-t]"); if (b) irA(b.dataset.t); });
 $("#avatar").addEventListener("click", () => irA(tab === "ajustes" ? "resumen" : "ajustes"));
+$("#simBtn").addEventListener("click", () => irA(tab === "sim" ? "resumen" : "sim"));
 async function goMonth(k){ cur = k; await Promise.all([0,1,2,3,4,5].map(i => loadMonth(addM(k,-i)))); render(); }
 render();
 
