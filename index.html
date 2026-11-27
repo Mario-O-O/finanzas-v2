@@ -237,6 +237,19 @@ input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:16px;heigh
 input[type=range]::-moz-range-thumb{width:12px;height:26px;border-radius:99px;background:#fff;border:3px solid #141414}
 input[type=range]:active::-webkit-slider-thumb{transform:scale(1.1)}
 .acts2{display:flex;gap:8px;flex:0 0 auto}
+
+.simres{background:var(--ink);color:var(--bg);border-radius:var(--r);padding:20px 22px;margin:4px 0 6px}
+.simres .small{opacity:.7;font-weight:500}
+.simbigres{font-size:40px;font-weight:300;letter-spacing:-.03em;line-height:1.1;margin-top:4px}
+.simbigres small{font-size:16px;letter-spacing:0;opacity:.75}
+.simres .lead{color:var(--bg);opacity:.7;font-size:13.5px}
+.simnm2{font-size:14px;font-weight:500}
+.simform .form{grid-template-columns:1fr 1fr}
+.simform .form.una{grid-template-columns:1fr}
+.simform input[type=date]{padding:12px 12px}
+html[data-screen="sim"] .title{font-size:34px;white-space:nowrap}
+.pre.mini{flex-basis:150px}
+.pre .por{color:var(--ink);font-weight:500;white-space:nowrap;font-size:14px}
 </style>
 </head>
 <body>
@@ -518,7 +531,7 @@ function simular(metodo, extra){
 }
 
 // ---------- views ----------
-const TITULOS = {resumen:"Mis\nfinanzas", movs:"Movi-\nmientos", deudas:"Pagos y\ndeudas", plan:"Plan de\ndeudas", sim:"Simu-\nlador", ajustes:"Ajustes"};
+const TITULOS = {resumen:"Mis\nfinanzas", movs:"Movi-\nmientos", deudas:"Pagos y\ndeudas", plan:"Plan de\ndeudas", sim:"Simulador", ajustes:"Ajustes"};
 const MES_C = ["ene","feb","mar","abr","may","jun","jul","ago","sep","oct","nov","dic"];
 const DIAS_C = ["dom","lun","mar","mié","jue","vie","sáb"];
 let lastTab = null;
@@ -810,84 +823,172 @@ function chart(series){
   return svg;
 }
 
-// ----- simulador de presupuesto -----
-const SIM_COL = ["#6f9be0","#8cc96a","#f4d55a","#e2855f","#b59bd8","#7cc4b8"];
-function simDatos(){
-  if (!config.sim){
-    const base = Math.max(0, Math.round(resumenMes(cur).libre / 1000) * 1000);
-    config.sim = {presupuesto: base || 800000, bloques:[
-      {id:uid(), nombre:"Fines de semana", abierto:true, items:[{id:uid(), nombre:"Fin de semana 1", valor:100000},{id:uid(), nombre:"Fin de semana 2", valor:100000},{id:uid(), nombre:"Fin de semana 3", valor:100000},{id:uid(), nombre:"Fin de semana 4", valor:100000}]},
-      {id:uid(), nombre:"Festivos y Navidad", abierto:false, items:[{id:uid(), nombre:"Festivo", valor:65000},{id:uid(), nombre:"Navidad", valor:100000}]},
-      {id:uid(), nombre:"Regalos", abierto:false, items:[{id:uid(), nombre:"Regalos", valor:120000}]}]};
+// ----- simulador: cuánto puedo gastar en los fines de semana entre dos fechas -----
+const SIM_COL = {finde:"#6f9be0", festivo:"#8cc96a", semana:"#f4d55a", otros:"#e2855f"};
+// festivos de Colombia (Ley Emiliani), calculados para cualquier año
+const festCache = {};
+function festivosCO(y){
+  if (festCache[y]) return festCache[y];
+  const f = {}, iso = d => d.getFullYear() + "-" + pad2(d.getMonth()+1) + "-" + pad2(d.getDate());
+  const add = (d, n) => { f[iso(d)] = n; };
+  const lunes = d => { const x = new Date(d); const w = x.getDay(); if (w !== 1) x.setDate(x.getDate() + ((8 - w) % 7)); return x; };
+  const a = y % 19, b = Math.floor(y / 100), c = y % 100, d = Math.floor(b / 4), e = b % 4, g = Math.floor((b + 8) / 25), h = Math.floor((b - g + 1) / 3),
+    i = (19 * a + b - d - h + 15) % 30, k = Math.floor(c / 4), l = c % 4, m = (32 + 2 * e + 2 * k - i - l) % 7, n = Math.floor((a + 11 * i + 22 * m) / 451),
+    mes = Math.floor((i + m - 7 * n + 114) / 31), dia = ((i + m - 7 * n + 114) % 31) + 1, pascua = new Date(y, mes - 1, dia);
+  const P = k2 => { const x = new Date(pascua); x.setDate(x.getDate() + k2); return x; };
+  add(new Date(y,0,1),"Año Nuevo"); add(new Date(y,4,1),"Día del Trabajo"); add(new Date(y,6,20),"Independencia"); add(new Date(y,7,7),"Batalla de Boyacá");
+  add(new Date(y,11,8),"Inmaculada Concepción"); add(new Date(y,11,25),"Navidad"); add(P(-3),"Jueves Santo"); add(P(-2),"Viernes Santo");
+  [[0,6,"Reyes Magos"],[2,19,"San José"],[5,29,"San Pedro y San Pablo"],[7,15,"Asunción"],[9,12,"Día de la Raza"],[10,1,"Todos los Santos"],[10,11,"Independencia de Cartagena"]]
+    .forEach(([mm,dd,nm]) => add(lunes(new Date(y,mm,dd)), nm));
+  add(lunes(P(39)),"Ascensión"); add(lunes(P(60)),"Corpus Christi"); add(lunes(P(68)),"Sagrado Corazón");
+  return festCache[y] = f;
+}
+const isoD = d => d.getFullYear() + "-" + pad2(d.getMonth()+1) + "-" + pad2(d.getDate());
+const festivoDe = s => festivosCO(+s.slice(0,4))[s] || "";
+// arma los bloques de días libres (fines de semana, puentes y festivos sueltos) entre dos fechas
+function diasLibres(desde, hasta){
+  const out = []; let habiles = 0, act = null;
+  const d = new Date(desde + "T00:00"), fin = new Date(hasta + "T00:00");
+  for (let n = 0; d <= fin && n < 800; n++, d.setDate(d.getDate() + 1)){
+    const s = isoD(d), w = d.getDay(), fest = festivoDe(s), libre = w === 0 || w === 6 || !!fest;
+    if (libre){ if (!act){ act = {key:s, dias:[], findes:0, fest:[]}; out.push(act); } act.dias.push(s); if (w === 0 || w === 6) act.findes++; if (fest) act.fest.push(fest); }
+    else { habiles++; act = null; }
   }
-  return config.sim;
+  out.forEach(bq => { bq.tipo = bq.findes ? "finde" : "festivo"; bq.peso = bq.dias.length; });
+  return {bloques: out, habiles};
+}
+function rango(bq){
+  const a = new Date(bq.dias[0] + "T00:00"), z = new Date(bq.dias[bq.dias.length-1] + "T00:00");
+  if (bq.dias.length === 1) return DIAS_C[a.getDay()] + " " + a.getDate() + " " + MES_C[a.getMonth()];
+  return a.getDate() + (a.getMonth() !== z.getMonth() ? " " + MES_C[a.getMonth()] : "") + "–" + z.getDate() + " " + MES_C[z.getMonth()];
+}
+function simDatos(){
+  if (!config.sim3){
+    const libre = Math.max(0, Math.round(resumenMes(cur).libre / 1000) * 1000);
+    config.sim3 = {dinero: libre || 800000, desde: hoyStr(), hasta: finPeriodo(periodoHoy()), diario: 0, colchon: 0, valores: {}, otros: [], abiertos: {finde:true}};
+  }
+  return config.sim3;
 }
 let simT = null;
 const simGuardar = () => { clearTimeout(simT); simT = setTimeout(saveConfig, 500); };
 // si cierras la app justo después de mover algo, igual se guarda
 ["pagehide","visibilitychange"].forEach(ev => window.addEventListener(ev, () => { if (simT && (ev === "pagehide" || document.hidden)){ clearTimeout(simT); simT = null; saveConfig(); } }));
+function campoPlata(valor, onIn){
+  const i = el("input",{inputmode:"numeric",class:"num",value:Math.round(valor || 0).toLocaleString("es-CO")});
+  i.addEventListener("input", () => onIn(num(i.value)));
+  i.addEventListener("blur", () => { i.value = Math.round(num(i.value)).toLocaleString("es-CO"); });
+  return i;
+}
 function vSim(v){
   const S = simDatos();
-  const tot = b => b.items.reduce((a, it) => a + (+it.valor || 0), 0);
-  const plan = () => S.bloques.reduce((a, b) => a + tot(b), 0);
+  if (S.hasta < S.desde) S.hasta = S.desde;
+  const L = diasLibres(S.desde, S.hasta);
+  const findes = L.bloques.filter(b => b.tipo === "finde"), fests = L.bloques.filter(b => b.tipo === "festivo");
+  const totOtros = () => S.otros.reduce((a, o) => a + (+o.valor || 0), 0);
+  const entreSemana = () => L.habiles * (+S.diario || 0);
+  // valor de cada bloque: lo que ajustaste a mano, o lo sugerido (b.sug, calculado en actualizar)
+  const valorDe = b => S.valores[b.key] != null ? +S.valores[b.key] : (b.sug || 0);
+
   // resumen arriba
   const sPlan = el("div",{class:"v num"}), sCol = el("div",{class:"v num big"}), sMar = el("div",{class:"v num"});
   v.append(el("div",{class:"simtop"},
     el("div",{}, el("div",{class:"l",text:"Gasto planificado"}), sPlan),
     el("div",{}, el("div",{class:"l",text:"Colchón libre"}), sCol),
     el("div",{}, el("div",{class:"l",text:"Margen libre"}), sMar)));
-  // presupuesto total
-  const pIn = el("input",{inputmode:"numeric",class:"num simbig",value:Math.round(S.presupuesto).toLocaleString("es-CO")});
-  pIn.addEventListener("input", () => { S.presupuesto = num(pIn.value); actualizar(); simGuardar(); });
-  pIn.addEventListener("blur", () => { pIn.value = Math.round(S.presupuesto).toLocaleString("es-CO"); render(); });
+
+  // tu plata y las fechas
+  const re = () => { saveConfig(); render(); };
+  const dIn = el("input",{type:"date",value:S.desde}), hIn = el("input",{type:"date",value:S.hasta});
+  dIn.addEventListener("change", () => { if (dIn.value){ S.desde = dIn.value; S.valores = {}; re(); } });
+  hIn.addEventListener("change", () => { if (hIn.value){ S.hasta = hIn.value; S.valores = {}; re(); } });
   const libre = resumenMes(cur).libre;
-  v.append(el("div",{class:"card"}, el("label",{class:"f"}, "Presupuesto total disponible (COP)", el("div",{class:"pre"}, el("span",{text:"$"}), pIn)),
-    libre > 0 ? el("button",{class:"small",style:"margin-top:10px",onclick:() => { S.presupuesto = Math.round(libre); saveConfig(); render(); }}, "Usar lo libre de este mes · ", el("span",{class:"num",text:fmt(libre)})) : null));
-  // barra de distribución
+  const diaTxt = el("div",{class:"small muted num",style:"margin-top:6px"});
+  v.append(el("div",{class:"card simform"},
+    el("label",{class:"f"}, "Plata que tienes (COP)", el("div",{class:"pre"}, el("span",{text:"$"}), Object.assign(campoPlata(S.dinero, n => { S.dinero = n; actualizar(); simGuardar(); }), {className:"num simbig"}))),
+    libre > 0 ? el("button",{class:"small",style:"margin-top:10px",onclick:() => { S.dinero = Math.round(libre); re(); }}, "Usar lo libre del mes · ", el("span",{class:"num",text:fmt(libre)})) : null,
+    el("div",{class:"form",style:"margin-top:14px"}, el("label",{class:"f"}, "Desde", dIn), el("label",{class:"f"}, "Hasta", hIn)),
+    el("div",{class:"form una",style:"margin-top:12px"},
+      el("label",{class:"f"}, "Gasto por día entre semana", el("div",{class:"pre"}, el("span",{text:"$"}), campoPlata(S.diario, n => { S.diario = n; actualizar(); simGuardar(); })), diaTxt),
+      el("label",{class:"f"}, "Colchón que quieres guardar", el("div",{class:"pre"}, el("span",{text:"$"}), campoPlata(S.colchon, n => { S.colchon = n; actualizar(); simGuardar(); }))))));
+
+  // respuesta principal
+  const hNum = el("span",{class:"num"}), hDia = el("div",{class:"num",style:"font-size:15px;opacity:.8;margin-top:2px"}), hSub = el("div",{class:"lead",style:"margin:6px 2px 0"});
+  v.append(el("div",{class:"simres"}, el("div",{class:"small",text:"Puedes gastar hasta"}), el("div",{class:"simbigres"}, hNum, el("small",{text:" por fin de semana"})), hDia, hSub));
+
+  // barra
   const barra = el("div",{class:"simbar"});
-  v.append(el("div",{class:"sec"}, "Distribución por bloques"), barra);
+  v.append(el("div",{class:"sec"}, "Distribución", el("a",{onclick:() => { S.valores = {}; re(); setStatus("Repartido por igual"); },text:"Repartir igual"})), barra);
+
   const refs = [];
-  const maxSl = () => Math.max(S.presupuesto, 100000);
-  S.bloques.forEach((b, bi) => {
-    const col = SIM_COL[bi % SIM_COL.length];
+  const bloque = (clave, titulo, col, cont, nItems) => {
     const pctEl = el("span",{class:"small muted num"}), totEl = el("b",{class:"num"});
-    const cuerpo = el("div",{class:"simitems" + (b.abierto ? "" : " hide")});
-    const cab = el("button",{class:"simcab",onclick:() => { b.abierto = !b.abierto; cuerpo.classList.toggle("hide", !b.abierto); cab.classList.toggle("on", b.abierto); simGuardar(); }},
-      el("i",{class:"dot",style:"background:" + col}), el("span",{class:"nm",text:b.nombre + " (" + b.items.length + ")"}), pctEl, totEl, el("span",{class:"chev"}, icon([["path",{d:"M6 15l6-6 6 6"}]])));
-    cab.classList.toggle("on", !!b.abierto);
-    b.items.forEach(it => {
-      const sl = el("input",{type:"range",min:"0",max:String(maxSl()),step:"5000",value:String(it.valor || 0),"aria-label":it.nombre,style:"--c:" + col});
-      const vin = el("input",{inputmode:"numeric",class:"num",value:Math.round(it.valor || 0).toLocaleString("es-CO")});
-      const pinta = () => { const p = (+sl.value / +sl.max) * 100; sl.style.setProperty("--p", p + "%"); };
-      sl.addEventListener("input", () => { it.valor = +sl.value; vin.value = it.valor.toLocaleString("es-CO"); pinta(); actualizar(); simGuardar(); });
-      vin.addEventListener("input", () => { it.valor = num(vin.value); if (it.valor > +sl.max) sl.max = String(it.valor); sl.value = String(it.valor); pinta(); actualizar(); simGuardar(); });
-      vin.addEventListener("blur", () => { vin.value = Math.round(it.valor).toLocaleString("es-CO"); });
-      const nm = el("input",{class:"simnm",value:it.nombre,"aria-label":"Nombre"});
-      nm.addEventListener("change", () => { it.nombre = nm.value.trim() || "Sin nombre"; simGuardar(); });
-      cuerpo.append(el("div",{class:"simit"},
-        el("div",{class:"simith"}, nm, el("button",{class:"ghost small","aria-label":"Quitar",onclick:() => { b.items = b.items.filter(x => x !== it); saveConfig(); render(); }}, "✕")),
-        el("div",{class:"simrow"}, sl, el("div",{class:"pre mini"}, el("span",{text:"$"}), vin))));
-      requestAnimationFrame(pinta);
-    });
-    const bn = el("input",{class:"simnm",value:b.nombre,"aria-label":"Nombre del bloque"});
-    bn.addEventListener("change", () => { b.nombre = bn.value.trim() || "Bloque"; saveConfig(); render(); });
-    cuerpo.append(el("div",{class:"simacc"},
-      el("button",{class:"small",onclick:() => { b.items.push({id:uid(), nombre:"Nuevo gasto", valor:0}); b.abierto = true; saveConfig(); render(); }}, "+ Agregar gasto"),
-      el("label",{class:"f",style:"flex:1;min-width:150px"}, "Nombre del bloque", bn),
-      el("button",{class:"ghost small",style:"color:var(--red)",onclick:e => { const t = e.currentTarget; if (!t.dataset.ok){ t.dataset.ok = "1"; t.textContent = "¿Seguro? toca otra vez"; setTimeout(() => { delete t.dataset.ok; t.textContent = "Borrar bloque"; }, 3000); return; }
-        S.bloques = S.bloques.filter(x => x !== b); saveConfig(); render(); }}, "Borrar bloque")));
+    const ab = S.abiertos[clave] !== undefined ? S.abiertos[clave] : false;
+    const cuerpo = el("div",{class:"simitems" + (ab ? "" : " hide")}, cont);
+    const cab = el("button",{class:"simcab" + (ab ? " on" : ""),onclick:() => { S.abiertos[clave] = !cuerpo.classList.contains("hide") ? false : true; cuerpo.classList.toggle("hide"); cab.classList.toggle("on"); simGuardar(); }},
+      el("i",{class:"dot",style:"background:" + col}), el("span",{class:"nm",text:titulo + (nItems != null ? " (" + nItems + ")" : "")}), pctEl, totEl, el("span",{class:"chev"}, icon([["path",{d:"M6 15l6-6 6 6"}]])));
     v.append(el("div",{class:"simblk"}, cab, cuerpo));
-    refs.push({b, col, pctEl, totEl});
+    return {pctEl, totEl};
+  };
+  const sliders = [];
+  const fila = (b, i, nombre) => {
+    // se muestra el valor de UN día y se multiplica por los días del bloque (× 2, × 3 si es puente)
+    const n = b.dias.length, dia = () => Math.round(valorDe(b) / n);
+    const sl = el("input",{type:"range",min:"0",max:String(Math.max(Math.round(S.dinero / n), 50000)),step:"1000","aria-label":nombre});
+    const vin = el("input",{inputmode:"numeric",class:"num"});
+    const pinta = () => sl.style.setProperty("--p", (+sl.value / +sl.max * 100) + "%");
+    const sync = () => { sl.value = String(dia()); if (document.activeElement !== vin) vin.value = dia().toLocaleString("es-CO"); pinta(); };
+    sl.addEventListener("input", () => { S.valores[b.key] = +sl.value * n; vin.value = (+sl.value).toLocaleString("es-CO"); pinta(); actualizar(); simGuardar(); });
+    vin.addEventListener("input", () => { const d = num(vin.value); S.valores[b.key] = d * n; if (d > +sl.max) sl.max = String(d); actualizar(); simGuardar(); });
+    vin.addEventListener("blur", () => { vin.value = dia().toLocaleString("es-CO"); });
+    sliders.push(sync);
+    const extra = b.dias.length > 2 ? " · puente" : "";
+    return el("div",{class:"simit"},
+      el("div",{class:"simith"}, el("span",{class:"simnm2"}, nombre + " ", el("span",{class:"muted",text:"(" + rango(b) + extra + ")"})), S.valores[b.key] != null ? el("span",{class:"pill",text:"ajustado"}) : null),
+      b.fest.length ? el("div",{class:"small muted",style:"margin-top:2px",text:"Festivo: " + b.fest.join(", ")}) : null,
+      el("div",{class:"simrow"}, sl, el("div",{class:"pre mini"}, el("span",{text:"$"}), vin, el("span",{class:"por",text:"× " + n}))));
+  };
+  const rF = findes.length ? bloque("finde", "Fines de semana", SIM_COL.finde, findes.map((b, i) => fila(b, i, "Fin de semana " + (i + 1))), findes.length) : null;
+  const rX = fests.length ? bloque("festivo", "Festivos entre semana", SIM_COL.festivo, fests.map((b, i) => fila(b, i, b.fest[0] || "Festivo")), fests.length) : null;
+  const semTxt = el("p",{class:"small muted num",style:"margin:4px 0 6px"});
+  const rS = bloque("semana", "Entre semana", SIM_COL.semana, semTxt);
+  const otrosBox = el("div");
+  S.otros.forEach(o => {
+    const nm = el("input",{class:"simnm",value:o.nombre,"aria-label":"Nombre"});
+    nm.addEventListener("change", () => { o.nombre = nm.value.trim() || "Gasto"; simGuardar(); });
+    otrosBox.append(el("div",{class:"simit"}, el("div",{class:"simith"}, nm, el("button",{class:"ghost small","aria-label":"Quitar",onclick:() => { S.otros = S.otros.filter(x => x !== o); re(); }}, "✕")),
+      el("div",{class:"pre",style:"margin-top:4px"}, el("span",{text:"$"}), campoPlata(o.valor, n => { o.valor = n; actualizar(); simGuardar(); }))));
   });
-  v.append(el("button",{class:"small",style:"margin-top:4px",onclick:() => { S.bloques.push({id:uid(), nombre:"Nuevo bloque", abierto:true, items:[{id:uid(), nombre:"Gasto", valor:0}]}); saveConfig(); render(); }}, "+ Nuevo bloque"));
-  v.append(el("div",{class:"tip",text:"Esto es solo una simulación: no crea movimientos ni cambia tu saldo. Juega con los valores hasta que el colchón te quede tranquilo."}));
+  otrosBox.append(el("button",{class:"small",style:"margin-top:10px",onclick:() => { S.otros.push({id:uid(), nombre:"Regalos", valor:0}); S.abiertos.otros = true; re(); }}, "+ Agregar gasto"));
+  const rO = bloque("otros", "Otros gastos", SIM_COL.otros, otrosBox, S.otros.length);
+  if (!L.bloques.length) v.append(el("p",{class:"muted",style:"margin:6px 2px",text:"No hay fines de semana ni festivos entre esas fechas."}));
+  v.append(el("div",{class:"tip",text:"Es solo una simulación: no crea movimientos ni cambia tu saldo. Por defecto reparte la plata por igual entre los días libres (un puente cuenta un día más). Si mueves una barra, ese fin de semana queda ajustado y el resto se acomoda; \"Repartir igual\" vuelve a empezar."}));
+
   function actualizar(){
-    const P = plan(), T = S.presupuesto, C = T - P, M = T > 0 ? C / T * 100 : 0;
+    // lo ajustado a mano se respeta; lo demás se reparte con lo que queda
+    const fijo = L.bloques.filter(b => S.valores[b.key] != null), auto = L.bloques.filter(b => S.valores[b.key] == null);
+    const pesoAuto = auto.reduce((a, b) => a + b.peso, 0);
+    const queda = S.dinero - entreSemana() - totOtros() - (+S.colchon || 0) - fijo.reduce((a, b) => a + +S.valores[b.key], 0);
+    const pd = pesoAuto ? Math.max(0, queda / pesoAuto) : 0;
+    auto.forEach(b => { b.sug = Math.floor(pd / 1000) * 1000 * b.peso; });
+    const val = b => S.valores[b.key] != null ? +S.valores[b.key] : b.sug;
+    const tF = findes.reduce((a, b) => a + val(b), 0), tX = fests.reduce((a, b) => a + val(b), 0), tS = entreSemana(), tO = totOtros();
+    const P = tF + tX + tS + tO, T = S.dinero, C = T - P, M = T > 0 ? C / T * 100 : 0;
     sPlan.textContent = fmt(P); sCol.textContent = fmt(C); sMar.textContent = Math.round(M) + "%";
     sCol.className = "v num big " + (C < 0 ? "red" : "okc"); sMar.className = "v num " + (C < 0 ? "red" : "");
-    barra.replaceChildren(...refs.map(r => { const t = tot(r.b); return el("i",{style:"background:" + r.col + ";flex-grow:" + Math.max(t, 0)}); }),
-      C > 0 ? el("i",{class:"rest",style:"flex-grow:" + C}) : null);
-    refs.forEach(r => { const t = tot(r.b); r.totEl.textContent = fmt(t); r.pctEl.textContent = (T > 0 ? Math.round(t / T * 100) : 0) + "%"; });
+    const normal = findes.filter(b => b.dias.length <= 2), base = normal.length ? normal : findes;
+    const tipico = base.length ? Math.min(...base.map(val)) : 0;
+    hNum.textContent = findes.length ? fmt(tipico) : fmt(0);
+    hDia.textContent = findes.length ? "(" + fmt(Math.round(tipico / 2)) + " × 2 días)" : "";
+    hSub.textContent = findes.length ? findes.length + (findes.length === 1 ? " fin de semana" : " fines de semana") + " del " + rango({dias:[S.desde]}) + " al " + rango({dias:[S.hasta]}) +
+      (findes.some(b => b.dias.length > 2) ? " · los puentes tienen un poco más" : "") + (C < 0 ? " · te pasas por " + fmt(-C) : "") : "No hay fines de semana en ese rango.";
+    diaTxt.textContent = L.habiles + " días hábiles × " + fmt(+S.diario || 0) + " = " + fmt(tS);
+    semTxt.textContent = L.habiles + " días entre semana × " + fmt(+S.diario || 0) + " al día = " + fmt(tS) + ". Cámbialo arriba en \"Gasto por día entre semana\".";
+    barra.replaceChildren(...[[tF,SIM_COL.finde],[tX,SIM_COL.festivo],[tS,SIM_COL.semana],[tO,SIM_COL.otros]].filter(x => x[0] > 0).map(([t,c]) => el("i",{style:"background:" + c + ";flex-grow:" + t})),
+      ...(C > 0 ? [el("i",{class:"rest",style:"flex-grow:" + C})] : []));
+    const pon = (r, t) => { if (!r) return; r.totEl.textContent = fmt(t); r.pctEl.textContent = (T > 0 ? Math.round(t / T * 100) : 0) + "%"; };
+    pon(rF, tF); pon(rX, tX); pon(rS, tS); pon(rO, tO);
+    L.bloques.forEach(b => { b.valAct = val(b); });
+    sliders.forEach(f => f());
   }
   actualizar();
 }
